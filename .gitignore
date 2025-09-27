@@ -1,5 +1,6 @@
 .idea/
 .vscode/
+.vs/
 bin/
 cmake-build-debug/
 cmake-build-release/
@@ -11,3 +12,4 @@ cmake-build-release/
 *.dll
 CMakeCache.txt
 *.lnk
+out/
