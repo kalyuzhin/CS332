@@ -6,4 +6,8 @@ cmake-build-release/
 .env
 .DS_Store
 .cache/
-
+*.log
+*.obj
+*.dll
+CMakeCache.txt
+*.lnk
