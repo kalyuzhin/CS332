@@ -13,3 +13,4 @@ cmake-build-release/
 CMakeCache.txt
 *.lnk
 out/
+CMakeSettings.json
