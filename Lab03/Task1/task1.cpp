@@ -13,11 +13,14 @@ void lab3task1::App::run() {
     create_tools_panel();
     create_color_panel();
     cv::imshow("Paint", this->img);
+    load_img("/Users/kalyuzhin/Developer/CLionProjects/CS332/gats.jpeg");
 
     while (true) {
         char key = (char) cv::waitKey(1);
         if (key == 27) {
             break;
+        } else if (key == 32) {
+            clear();
         }
     }
 }
@@ -81,13 +84,17 @@ void lab3task1::App::on_mouse(int event, int x, int y, int flags, void *userdata
             app->fill(x, y);
             cv::imshow("Paint", app->img);
         }
+        if (app->cur_tool == lab3task1::FILL_WITH_IMG) {
+            app->fill_img(x, y);
+            cv::imshow("Paint", app->img);
+        }
     }
 }
 
 void lab3task1::App::create_tools_panel() {
     cv::Mat panel = cv::Mat(PANEL_HEIGHT, this->img.cols, CV_8UC3, cv::Scalar(50, 50, 50));
-    vec<Tool> tools = {PEN, CIRCLE, FILL};
-    vec<std::string> tools_names = {"Pen", "Circle", "Fill"};
+    vec<Tool> tools = {PEN, CIRCLE, FILL, FILL_WITH_IMG};
+    vec<std::string> tools_names = {"Pen", "Circle", "Fill", "Fill with img"};
     cv::Scalar text_color = cv::Scalar(255, 255, 255);
 
     this->tool_buttons.clear();
@@ -173,7 +180,7 @@ void lab3task1::App::fill_recursive(int x, int y, const cv::Vec3b &target_color,
     }
     right--;
 
-    int mod = abs(left - right) > 1000 ? 1000 : 100;
+    int mod = abs(left - right) > 1000 ? 20000 : 100;
 
     for (int i = left; i <= right; i++) {
         img.at<cv::Vec3b>(y, i) = new_color;
@@ -200,5 +207,76 @@ void lab3task1::App::fill(ll x, ll y) {
         );
 
         fill_recursive(x, y, target_color, new_color);
+    }
+}
+
+void lab3task1::App::clear() {
+    setup();
+}
+
+void lab3task1::App::setup() {
+    img = cv::Mat(img.size(), img.type(), cv::Scalar(255, 255, 255));
+    cv::namedWindow("Paint");
+    cv::setMouseCallback("Paint", on_mouse, this);
+
+    create_tools_panel();
+    create_color_panel();
+    cv::imshow("Paint", this->img);
+}
+
+void lab3task1::App::fill_recursive_img(int x, int y, const cv::Vec3b &target_color) {
+    if (x < 0 || x >= img.cols || y < (PANEL_HEIGHT + COLOR_PANEL_HEIGHT) || y >= img.rows)
+        return;
+
+    cv::Vec3b cur_color = img.at<cv::Vec3b>(y, x);
+    if (cur_color != target_color)
+        return;
+
+    int left = x;
+    while (left >= 0) {
+        cv::Vec3b color = img.at<cv::Vec3b>(y, left);
+        if (color != target_color) break;
+        left--;
+    }
+    left++;
+
+    int right = x;
+    while (right < img.cols) {
+        cv::Vec3b color = img.at<cv::Vec3b>(y, right);
+        if (color != target_color) break;
+        right++;
+    }
+    right--;
+
+    for (int i = left; i <= right; ++i) {
+        int img_x = i - offset_x;
+        int img_y = y - offset_y;
+
+        img_x = (img_x % loaded_img.cols + loaded_img.cols) % loaded_img.cols;
+        img_y = (img_y % loaded_img.rows + loaded_img.rows) % loaded_img.rows;
+
+        if (img_x >= 0 && img_x < loaded_img.cols &&
+            img_y >= 0 && img_y < loaded_img.rows) {
+            cv::Vec3b pattern_color = loaded_img.at<cv::Vec3b>(img_y, img_x);
+            img.at<cv::Vec3b>(y, i) = pattern_color;
+        }
+    }
+
+    for (int i = left; i <= right; i++) {
+        fill_recursive_img(i, y - 1, target_color);
+        fill_recursive_img(i, y + 1, target_color);
+    }
+}
+
+void lab3task1::App::load_img(const string &path) {
+    loaded_img = cv::imread(path, cv::IMREAD_COLOR);
+}
+
+void lab3task1::App::fill_img(ll x, ll y) {
+    if (x >= 0 && x < img.cols && y >= (PANEL_HEIGHT + COLOR_PANEL_HEIGHT) && y < img.rows) {
+        offset_x = x;
+        offset_y = y;
+        cv::Vec3b target_color = img.at<cv::Vec3b>(y, x);
+        fill_recursive_img(x, y, target_color);
     }
 }

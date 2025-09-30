@@ -20,7 +20,8 @@ namespace lab3task1 {
     enum Tool {
         PEN,
         CIRCLE,
-        FILL
+        FILL,
+        FILL_WITH_IMG
     };
 
     class Button {
@@ -53,6 +54,11 @@ namespace lab3task1 {
         cv::Point prev_point;
         cv::Point start_point;
 
+        cv::Mat loaded_img;
+        bool tile_mode;
+        int offset_x = 0;
+        int offset_y = 0;
+
         vec<Button> tool_buttons;
         vec<ColorButton> color_buttons;
 
@@ -62,9 +68,19 @@ namespace lab3task1 {
 
         void create_color_panel();
 
+        void setup();
+
+        void clear();
+
         void fill(ll x, ll y);
 
         void fill_recursive(int x, int y, const cv::Vec3b &target_color, const cv::Vec3b &new_color);
+
+        void load_img(const string &path);
+
+        void fill_recursive_img(int x, int y, const cv::Vec3b &target_color);
+
+        void fill_img(ll x, ll y);
 
 
     public:
