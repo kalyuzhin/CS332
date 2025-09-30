@@ -3,7 +3,7 @@ project(CS332)
 
 set(CMAKE_CXX_STANDARD 20)
 
-add_executable(CS332 main.cpp "Lab03/Task3/Task3.cpp")
+add_executable(CS332 main.cpp "Lab03/Task2/Task2.cpp")
 
 if(DEFINED ENV{OpenCV_DIR})
     set(OpenCV_DIR $ENV{OpenCV_DIR})

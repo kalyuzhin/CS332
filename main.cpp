@@ -1,5 +1,2 @@
 #include <iostream>
 
-int main() {
-
-}
