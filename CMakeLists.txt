@@ -3,11 +3,14 @@ project(CS332)
 
 set(CMAKE_CXX_STANDARD 20)
 
-add_executable(CS332 main.cpp "Lab03/Task3/Task3.cpp")
+add_executable(CS332 main.cpp
+        Lab03/Task1/task1.cpp
+        Lab03/Task1/task1.h
+        provider.h)
 
-if(DEFINED ENV{OpenCV_DIR})
+if (DEFINED ENV{OpenCV_DIR})
     set(OpenCV_DIR $ENV{OpenCV_DIR})
-endif()
+endif ()
 
 find_package(OpenCV REQUIRED)
 message(STATUS "OpenCV version: ${OpenCV_VERSION}")
