@@ -3,6 +3,7 @@ project(CS332)
 
 set(CMAKE_CXX_STANDARD 20)
 
+
 add_executable(CS332 main.cpp
         Lab03/Task1/task1.cpp
         Lab03/Task1/task1.h
@@ -20,6 +21,7 @@ find_package(OpenCV REQUIRED)
 message(STATUS "OpenCV version: ${OpenCV_VERSION}")
 message(STATUS "OpenCV libraries: ${OpenCV_LIBS}")
 message(STATUS "OpenCV include dir: ${OpenCV_INCLUDE_DIRS}")
+
 
 target_link_libraries(CS332 ${OpenCV_LIBS})
 target_include_directories(CS332 PRIVATE ${OpenCV_INCLUDE_DIRS})
