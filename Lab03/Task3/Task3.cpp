@@ -156,10 +156,10 @@ int main2() {
 
     while (true) {
         int key = cv::waitKey(1) & 0xFF;
-        if (key == 27) { // ESC - выход
+        if (key == 27) { // ESC - ГўГ»ГµГ®Г¤
             break;
         }
-        else if (key == 32) { // SPACE - создание треугольника
+        else if (key == 32) { // SPACE - Г±Г®Г§Г¤Г Г­ГЁГҐ ГІГ°ГҐГіГЈГ®Г«ГјГ­ГЁГЄГ 
             cout << "space pressed" << endl;
             createTriangle();
         }

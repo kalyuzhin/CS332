@@ -16,3 +16,6 @@ out/
 CMakeSettings.json
 build/
 *.keep
+*.jpeg
+*.png
+*.jpg
