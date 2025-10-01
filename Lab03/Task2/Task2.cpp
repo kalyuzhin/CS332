@@ -170,9 +170,6 @@ int main() {
     LineDrawer::drawLineWu(image, static_cast<float>(x0), static_cast<float>(y0),
         static_cast<float>(x1), static_cast<float>(y1), cv::Vec3b(0, 255, 0));
 
-    cv::putText(image, "Bresenham (Red) and Wu (Green)", cv::Point(20, 30),
-        cv::FONT_HERSHEY_SIMPLEX, 0.7, cv::Scalar(255, 255, 255), 2);
-
     cv::imshow("Line Drawing Algorithms - User Input", image);
     cv::waitKey(0);
 
