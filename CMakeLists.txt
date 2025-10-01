@@ -12,7 +12,7 @@ message(STATUS "OpenCV version: ${OpenCV_VERSION}")
 message(STATUS "OpenCV libraries: ${OpenCV_LIBS}")
 message(STATUS "OpenCV include dir: ${OpenCV_INCLUDE_DIRS}")
 
-add_executable(CS332 main.cpp "Lab03/Task3/Task3.cpp" "Lab03/Task3/Task3.h")
+add_executable(CS332 main.cpp "Lab03/Task3/Task3.cpp" "Lab03/Task3/Task3.h" "Lab03/Task1/Task1.3/Task1.3.cpp")
 
 target_link_libraries(CS332 ${OpenCV_LIBS})
 target_include_directories(CS332 PRIVATE ${OpenCV_INCLUDE_DIRS})
