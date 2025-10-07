@@ -15,6 +15,7 @@
 #include <iostream>
 #include <unordered_set>
 #include "opencv2/opencv.hpp"
+#include "imgui.h"
 
 #pragma GCC optimize("Ofast,unroll-loops")
 #pragma GCC target("avx2,popcnt,lzcnt,abm,bmi,bmi2,fma,tune=native")
