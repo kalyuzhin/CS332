@@ -39,7 +39,7 @@ message(STATUS "OpenCV include dir: ${OpenCV_INCLUDE_DIRS}")
 
 target_link_libraries(CS332 ${OpenCV_LIBS})
 target_include_directories(CS332 PRIVATE ${OpenCV_INCLUDE_DIRS})
-target_include_directories(CS332 PRIVATE imgimgui/backends)
+target_include_directories(CS332 PRIVATE build/imgui build/imgui/backends)
 if (WIN32)
     target_compile_definitions(CS332 PRIVATE _CRT_SECURE_NO_WARNINGS)
 endif ()
