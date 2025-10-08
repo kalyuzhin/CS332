@@ -1,0 +1,17 @@
+{
+  "configurations": [
+    {
+      "name": "x64-Debug",
+      "generator": "Ninja",
+      "configurationType": "Debug",
+      "buildRoot": "${projectDir}\\build\\${name}",
+      "variables": [
+        {
+          "name": "CMAKE_PREFIX_PATH",
+          "value": "C:\\path\\to\\your\\opencv",
+          "type": "STRING"
+        }
+      ]
+    }
+  ]
+}
