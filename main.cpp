@@ -1,5 +1,7 @@
 #include "provider.h"
 
+static double EPS = 0.0001;
+
 static void glfw_error_callback(int error, const char *description);
 
 vector<vector<cv::Point>> polygons;
@@ -79,14 +81,12 @@ void applyAffineTransformation(int transformType, cv::Point transformRefPoint = 
 
     cv::Mat transformMatrix = cv::Mat::eye(3, 3, CV_64F);
 
-    if (transformType == 0)
-    {
+    if (transformType == 0) {
         transformMatrix = (cv::Mat_<double>(3, 3) <<
                                                   1, 0, transformDx,
                 0, 1, transformDy,
                 0, 0, 1);
-    } else if (transformType == 1 || transformType == 2)
-    {
+    } else if (transformType == 1 || transformType == 2) {
         double angleRad = rotationAngle * CV_PI / 180.0;
         cv::Point center = (transformType == 1) ? transformRefPoint : getPolygonCenter(polygons.back());
 
@@ -95,8 +95,7 @@ void applyAffineTransformation(int transformType, cv::Point transformRefPoint = 
                 angleRad), 0, 0, 0, 1);
         cv::Mat T2 = (cv::Mat_<double>(3, 3) << 1, 0, center.x, 0, 1, center.y, 0, 0, 1);
         transformMatrix = T2 * R * T1;
-    } else if (transformType == 3 || transformType == 4)
-    {
+    } else if (transformType == 3 || transformType == 4) {
         cv::Point center = (transformType == 3) ? transformRefPoint : getPolygonCenter(polygons.back());
 
         cv::Mat T1 = (cv::Mat_<double>(3, 3) << 1, 0, -center.x, 0, 1, -center.y, 0, 0, 1);
@@ -167,7 +166,7 @@ void onMouse(int event, int x, int y, int flags, void *userdata) {
                 cv::Point edgeStart = polygons.back()[0];
                 cv::Point edgeEnd = polygons.back()[1 % polygons.back().size()];
                 std::string position = classifyPointRelativeToEdge(mousePoint, edgeStart, edgeEnd);
-                printf("Точка (%d, %d) находится %s относител��но ребра ((%d, %d) - (%d, %d)).\n",
+                printf("Точка (%d, %d) находится %s относительно ребра ((%d, %d) - (%d, %d)).\n",
                        mousePoint.x, mousePoint.y, position.c_str(), edgeStart.x, edgeStart.y, edgeEnd.x, edgeEnd.y);
             }
         } else if (isDrawingIntersectionEdge) {
@@ -207,8 +206,7 @@ void onMouse(int event, int x, int y, int flags, void *userdata) {
                     printf("Точка (%d, %d) не принадлежит полигону.\n", mousePoint.x, mousePoint.y);
                 }
             }
-        } else
-        {
+        } else {
             if (polygons.empty() || polygons.back().empty() || polygons.back().back() != mousePoint) {
                 if (polygons.empty() || polygonColors.size() < polygons.size()) {
                     polygons.push_back({});
@@ -308,15 +306,12 @@ int main(int, char **) {
                                          "Scaling relative to its center"};
         ImGui::Combo("Conversion", &currentTransform, transform_items, IM_ARRAYSIZE(transform_items));
 
-        if (currentTransform == 0)
-        {
+        if (currentTransform == 0) {
             ImGui::InputFloat("dx", &transformDx);
             ImGui::InputFloat("dy", &transformDy);
-        } else if (currentTransform == 1 || currentTransform == 2)
-        {
+        } else if (currentTransform == 1 || currentTransform == 2) {
             ImGui::InputFloat("Angle (degrees)", &rotationAngle);
-        } else if (currentTransform == 3 || currentTransform == 4)
-        {
+        } else if (currentTransform == 3 || currentTransform == 4) {
             ImGui::InputFloat("Scale X", &scaleX);
             ImGui::InputFloat("Scale Y", &scaleY);
         }
@@ -342,20 +337,17 @@ int main(int, char **) {
             intersectionEdgePoints.clear();
             redrawScene();
 
-            if (currentSearch == 0)
-            {
+            if (currentSearch == 0) {
                 isDeterminingPointPosition = true;
-                printf("Режим: Определение положения точки. Кликните на холсте, чтобы выбрать точку.\n");
-            } else if (currentSearch == 1)
-            {
+            } else if (currentSearch == 1) {
                 isDrawingIntersectionEdge = true;
                 intersectionPoints.clear();
                 printf("Режим: Поиск пересечения. Кликните дважды на холсте, чтобы задать ребро.\n");
-            } else if (currentSearch == 2)
-            {
+            } else if (currentSearch == 2) {
                 isCheckingPointInPolygon = true;
                 printf("Режим: Принадлежность точки полигону. Кликните на холсте, чтобы выбрать точку.\n");
             }
+            ImGui::CloseCurrentPopup();
         }
 
         ImGui::End();
