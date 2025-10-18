@@ -10,6 +10,8 @@ set(SOURCES
 
 file(GLOB_RECURSE LAB04_FILES "Lab04/*.cpp" "Lab04/*.h")
 list(APPEND SOURCES ${LAB04_FILES})
+file(GLOB_RECURSE LAB05_FILES "Lab05/*.cpp" "Lab05/*.h")
+list(APPEND SOURCES ${LAB05_FILES})
 message(STATUS "Sources: ${SOURCES}")
 
 add_executable(CS332 ${SOURCES})
