@@ -55,6 +55,7 @@ target_link_libraries(CS332
     glfw
     ${WIN32_LIBRARIES}
 )
+
 target_include_directories(CS332 PRIVATE ${CMAKE_SOURCE_DIR})
 target_include_directories(CS332 PRIVATE ${OpenCV_INCLUDE_DIRS})
 target_include_directories(CS332 PRIVATE build/imgui build/imgui/backends)
