@@ -58,6 +58,7 @@ target_link_libraries(CS332
 target_include_directories(CS332 PRIVATE ${CMAKE_SOURCE_DIR})
 target_include_directories(CS332 PRIVATE ${OpenCV_INCLUDE_DIRS})
 target_include_directories(CS332 PRIVATE build/imgui build/imgui/backends)
+target_include_directories(CS332 PRIVATE build/glfw build/glfw/include/GLFW)
 if (WIN32)
     target_compile_definitions(CS332 PRIVATE _CRT_SECURE_NO_WARNINGS)
     target_link_libraries(${PROJECT_NAME} opengl32 gdi32)
