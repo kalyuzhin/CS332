@@ -1,0 +1,2 @@
+F 60 0
+F>F[+FF][-FF]FF[+FF][-FF]FF

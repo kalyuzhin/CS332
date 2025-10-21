@@ -2,121 +2,580 @@
 #include "Lab05/App.h"
 #include <random>
 #include <chrono>
+#include <fstream>
+#include <sstream>
+#include <cmath>
+#include <stack>
+#include <queue>
+#include <thread>
+#include <filesystem>
 
+using namespace Lab05;
 
-//2. Алгоритм midpoint displacement
-//Реализовать алгоритм midpoint displacement для двумерной визуализации горного массива.
-//Необходимо отображать результаты последовательных шагов алгоритма.Программа должна позволять изменять параметры построения ломаной.
-//поля для интерфейса: R - коэфициент изменения высот, Steps - кол-во шагов алгоритма
-namespace Lab05 {
-    static void glfw_error_callback(int error, const char* description);
+// Глобальные переменные для L-системы
+static std::shared_ptr<LSystem> currentLSystem;
+static std::shared_ptr<LSystemGenerator> currentGenerator;
+static std::string currentSequence;
+static int currentIterations = 5;
+static std::vector<std::string> lSystemFiles = {
+    "../Lab05/LSystems/Sierpinski Curve.txt",
+    "../Lab05/LSystems/Koch Curve.txt",
+    "../Lab05/LSystems/Simple Tree.txt",
+    "../Lab05/LSystems/Random Tree.txt",
+    "../Lab05/LSystems/Dragon.txt",
+    "../Lab05/LSystems/Koch Island.txt",
+    "../Lab05/LSystems/Hilbert Curve.txt",
+    "../Lab05/LSystems/Gosper Curve.txt",
+    "../Lab05/LSystems/Hexagonal Tiling.txt"
+};
+static std::vector<int> iterationsCounts = { 1, 1, 1, 1, 1, 1, 1, 1, 1 };
+static int selectedLSystem = 0;
 
-    vector<cv::Point> points;
-    vector<double> test = { 1, 2, 3, 4 };
-    cv::Point lp, rp;
-	static const int WIDTH = 1600;
-	static const int HEIGHT = 1000;
-	int steps = 5;
-	float R = 0.5f;
-    cv::Mat canvas;
+// Параметры рисования
+static bool needsRedraw = false;
+static bool lsystem_running = false;
+static int current_draw_step = 0;
+static int total_draw_steps = 0;
 
-    bool midpoint_running = false;
-    int current_step = 0;
-    int steps_total = 0;
+// Канвасы для разных алгоритмов
+static cv::Mat midpointCanvas;
+static cv::Mat lsystemCanvas;
+const int CANVAS_WIDTH = 800;
+const int CANVAS_HEIGHT = 600;
 
-    float randomFloat(float min, float max) {
-        static std::mt19937 rng(std::random_device{}());
-        std::uniform_real_distribution<float> dist(min, max);
-        return dist(rng);
+// Вспомогательные функции для работы с файлами
+void printCurrentDirectory() {
+    try {
+        std::string currentPath = std::filesystem::current_path().string();
+        printf("Current working directory: %s\n", currentPath.c_str());
     }
+    catch (const std::exception& e) {
+        printf("Error getting current directory: %s\n", e.what());
+    }
+}
 
-    void redraw() {
-        canvas = cv::Mat(canvas.size(), CV_8UC3, cv::Scalar(255, 255, 255));
-        for (int i = 0; i < points.size()-1; i++) {
-            cv::line(canvas, points[i], points[i + 1], cv::Scalar(0, 0, 0));
+std::string findLSystemFile(const std::string& filename) {
+    // Пробуем разные пути относительно текущей директории
+    std::vector<std::string> paths = {
+        filename,
+        "../" + filename,
+        "../../" + filename,
+        "../../../" + filename,
+        "Lab05/LSystems/" + filename,
+        "../Lab05/LSystems/" + filename,
+        "../../Lab05/LSystems/" + filename,
+        "../../../Lab05/LSystems/" + filename
+    };
+
+    printf("Searching for file: %s\n", filename.c_str());
+
+    for (const auto& path : paths) {
+        std::ifstream file(path);
+        if (file.is_open()) {
+            file.close();
+            printf("Found file: %s\n", path.c_str());
+            return path;
+        }
+        else {
+            printf("  Not found: %s\n", path.c_str());
         }
     }
 
-    void MidpointDisplacementStep() {
-        auto it = points.begin() + 1;
-        while (it != points.end()) {
-            auto a = *(it - 1);
-            auto b = *it;
-            float mid_x = (b.x + a.x) / 2.0f;
-            float length = (b.x - a.x) / 2.0f;
-            float mid_y = (b.y + a.y) / 2.0f + randomFloat(-R * length, R * length);
-            it = points.insert(it, cv::Point(mid_x, mid_y));
-            it+=2;
+    throw std::runtime_error("Cannot find L-system file: " + filename);
+}
+
+void checkLSystemFiles() {
+    printf("=== CHECKING L-SYSTEM FILES ===\n");
+    for (const auto& filename : lSystemFiles) {
+        printf("Checking file: %s\n", filename.c_str());
+
+        try {
+            std::string fullPath = findLSystemFile(filename);
+            std::ifstream file(fullPath);
+            if (!file.is_open()) {
+                printf("  ERROR: Cannot open file!\n");
+                continue;
+            }
+
+            std::string line;
+            int lineNum = 0;
+            while (std::getline(file, line)) {
+                printf("  Line %d: '%s'\n", lineNum, line.c_str());
+                lineNum++;
+            }
+            file.close();
+            printf("  --- End of file ---\n");
+        }
+        catch (const std::exception& e) {
+            printf("  ERROR: %s\n", e.what());
+        }
+    }
+}
+
+// Реализация LSystem
+LSystem::LSystem(const std::string& filePath) {
+    std::ifstream file(filePath);
+    if (!file.is_open()) {
+        throw std::runtime_error("Cannot open L-system file: " + filePath);
+    }
+
+    std::string line;
+    // Первая строка: аксиома, угол, начальное направление
+    if (std::getline(file, line)) {
+        std::istringstream iss(line);
+        std::string axiomStr, angleStr, directionStr;
+
+        if (!(iss >> axiomStr >> angleStr >> directionStr)) {
+            throw std::runtime_error("Invalid first line format in L-system file");
+        }
+
+        axiom = axiomStr;
+        angle = std::stod(angleStr);
+        startDirection = std::stod(directionStr);
+
+        printf("Parsed: axiom='%s', angle=%.1f, startDirection=%.1f\n",
+            axiom.c_str(), angle, startDirection);
+    }
+
+    // Остальные строки: правила
+    int ruleCount = 0;
+    while (std::getline(file, line)) {
+        // Пропускаем пустые строки
+        if (line.empty()) continue;
+
+        // Убираем лишние пробелы в начале и конце
+        size_t start = line.find_first_not_of(" \t");
+        if (start == std::string::npos) continue;
+
+        size_t end = line.find_last_not_of(" \t");
+        std::string trimmedLine = line.substr(start, end - start + 1);
+
+        // Ищем разделитель '>'
+        size_t pos = trimmedLine.find('>');
+        if (pos != std::string::npos && pos > 0) {
+            char key = trimmedLine[0];
+            std::string value = trimmedLine.substr(pos + 1);
+
+            // Убираем лишние пробелы из значения
+            size_t valueStart = value.find_first_not_of(" \t");
+            if (valueStart != std::string::npos) {
+                value = value.substr(valueStart);
+            }
+
+            rules[key] = value;
+            ruleCount++;
+            printf("Rule %d: '%c' -> '%s'\n", ruleCount, key, value.c_str());
         }
     }
 
-    void MidpointDisplacement() {
-        for (int i = 0; i < steps; i++) {
-            MidpointDisplacementStep();
-            redraw();
-            this_thread::sleep_for(chrono::seconds(1));
+    printf("Loaded L-system: %zu rules total\n", rules.size());
+}
+
+// Реализация LSystemGenerator
+LSystemGenerator::LSystemGenerator(std::shared_ptr<LSystem> lsystem)
+    : lSystem(lsystem) {
+}
+
+std::string LSystemGenerator::generateSequence(int iterations) {
+    std::string current = lSystem->axiom;
+
+    for (int i = 0; i < iterations; i++) {
+        std::string next;
+
+        for (char symbol : current) {
+            auto it = lSystem->rules.find(symbol);
+            if (it != lSystem->rules.end()) {
+                next += it->second;
+            }
+            else {
+                next += symbol;
+            }
+        }
+
+        current = next;
+    }
+
+    return current;
+}
+
+// Реализация FractalDrawer
+PointF FractalDrawer::calculateNextPosition(float stepLength, PointF position, double direction) {
+    double radianAngle = direction * (3.14159 / 180.0);
+    float nextX = position.x + static_cast<float>(stepLength * cos(radianAngle));
+    float nextY = position.y - static_cast<float>(stepLength * sin(radianAngle));
+    return PointF(nextX, nextY);
+}
+
+void FractalDrawer::drawLine(const PointF& p1, const PointF& p2, int colorValue, float thickness) {
+    cv::Point cvP1(static_cast<int>(p1.x), static_cast<int>(p1.y));
+    cv::Point cvP2(static_cast<int>(p2.x), static_cast<int>(p2.y));
+
+    // Ограничиваем цвет в диапазоне 0-255
+    int color = std::max(0, std::min(255, colorValue));
+    cv::Scalar lineColor(color, color, color);
+
+    cv::line(canvas, cvP1, cvP2, lineColor, static_cast<int>(thickness));
+}
+
+void FractalDrawer::calculateBounds(const std::string& sequence, double angleIncrement, float stepLength) {
+    std::stack<std::tuple<PointF, double, float>> stack;
+
+    minX = maxX = currentPosition.x;
+    minY = maxY = currentPosition.y;
+
+    PointF currentPos = currentPosition;
+    double currentDir = currentDirection;
+    float currentStep = stepLength;
+
+    for (char symbol : sequence) {
+        if (isalpha(symbol)) {
+            PointF nextPos = calculateNextPosition(currentStep, currentPos, currentDir);
+
+            minX = std::min(minX, static_cast<double>(nextPos.x));
+            minY = std::min(minY, static_cast<double>(nextPos.y));
+            maxX = std::max(maxX, static_cast<double>(nextPos.x));
+            maxY = std::max(maxY, static_cast<double>(nextPos.y));
+
+            currentPos = nextPos;
+        }
+        else {
+            switch (symbol) {
+            case '+':
+                currentDir += angleIncrement;
+                break;
+            case '-':
+                currentDir -= angleIncrement;
+                break;
+            case '[':
+                stack.push(std::make_tuple(currentPos, currentDir, currentStep));
+                break;
+            case ']':
+                if (!stack.empty()) {
+                    auto savedState = stack.top();
+                    stack.pop();
+                    currentPos = std::get<0>(savedState);
+                    currentDir = std::get<1>(savedState);
+                    currentStep = std::get<2>(savedState);
+                }
+                break;
+            case '@':
+                static std::mt19937 rng(std::random_device{}());
+                std::uniform_real_distribution<double> dist(0, angleIncrement);
+                currentDir += dist(rng);
+                break;
+            }
+        }
+    }
+}
+
+void FractalDrawer::draw(const std::string& sequence, double angleIncrement, float stepLength) {
+    printf("Starting draw: sequence length=%zu, angle=%.1f, step=%.1f\n",
+        sequence.length(), angleIncrement, stepLength);
+
+    // Очищаем канвас
+    canvas = cv::Scalar(255, 255, 255);
+
+    // Инициализация для calculateBounds
+    currentPosition = PointF(0, 0);
+    currentDirection = currentLSystem->startDirection;
+    minX = minY = maxX = maxY = 0.0;
+
+    calculateBounds(sequence, angleIncrement, stepLength);
+
+    printf("Bounds: minX=%.1f, maxX=%.1f, minY=%.1f, maxY=%.1f\n", minX, maxX, minY, maxY);
+
+    // Масштабирование и центрирование
+    double width = maxX - minX;
+    double height = maxY - minY;
+
+    if (width == 0 || height == 0) {
+        printf("Error: Zero bounds - nothing to draw\n");
+        return;
+    }
+
+    double scaleX = (CANVAS_WIDTH - 40) / width;
+    double scaleY = (CANVAS_HEIGHT - 40) / height;
+    scaleCoef = std::min(scaleX, scaleY);
+
+    double offsetX = (CANVAS_WIDTH - width * scaleCoef) / 2 - minX * scaleCoef;
+    double offsetY = (CANVAS_HEIGHT - height * scaleCoef) / 2 - minY * scaleCoef;
+
+    printf("Scale: %.3f, Offset: (%.1f, %.1f)\n", scaleCoef, offsetX, offsetY);
+
+    // Настройка начальной позиции
+    currentPosition = PointF(static_cast<float>(offsetX), static_cast<float>(offsetY));
+    currentDirection = currentLSystem->startDirection;
+
+    std::stack<std::tuple<PointF, double, float, int, float>> stack;
+    PointF currentPos = currentPosition;
+    double currentDir = currentDirection;
+    float currentStep = stepLength * static_cast<float>(scaleCoef);
+    int currentColor = 0;
+    float currentThickness = 2.0f;
+
+    int linesDrawn = 0;
+    total_draw_steps = sequence.length();
+    current_draw_step = 0;
+
+    for (char symbol : sequence) {
+        if (isalpha(symbol)) {
+            // Рисуем линию
+            PointF nextPos = calculateNextPosition(currentStep, currentPos, currentDir);
+            drawLine(currentPos, nextPos, currentColor, currentThickness);
+            currentPos = nextPos;
+            linesDrawn++;
+
+            // Микро-задержка для визуализации процесса
+            //std::this_thread::sleep_for(std::chrono::microseconds(10));
+        }
+        else {
+            switch (symbol) {
+            case '+':
+                currentDir += angleIncrement;
+                break;
+            case '-':
+                currentDir -= angleIncrement;
+                break;
+            case '[':
+                stack.push(std::make_tuple(currentPos, currentDir, currentStep, currentColor, currentThickness));
+                break;
+            case ']':
+                if (!stack.empty()) {
+                    auto savedState = stack.top();
+                    stack.pop();
+                    currentPos = std::get<0>(savedState);
+                    currentDir = std::get<1>(savedState);
+                    currentStep = std::get<2>(savedState);
+                    currentColor = std::get<3>(savedState);
+                    currentThickness = std::get<4>(savedState);
+                }
+                break;
+            case '@':
+                // Для Random Tree - случайный угол
+                static std::mt19937 rng(std::random_device{}());
+                std::uniform_real_distribution<double> dist(0, angleIncrement);
+                currentDir += dist(rng);
+                break;
+            }
+        }
+
+        current_draw_step++;
+
+        // Обновляем отображение каждые 100 шагов
+        if (current_draw_step % 100 == 0) {
+            cv::imshow("L-System Fractals", canvas);
+            cv::waitKey(1);
         }
     }
 
-    
+    printf("Draw completed. Lines drawn: %d\n", linesDrawn);
+    lsystem_running = false;
+}
 
-	int App::run() {
-        glfwSetErrorCallback(glfw_error_callback);
-        if (!glfwInit())
-            return 1;
+// Функции для работы с L-системами
+void loadLSystem(const std::string& filename) {
+    try {
+        std::string fullPath = findLSystemFile(filename);
+        printf("Loading L-system from: %s\n", fullPath.c_str());
+        currentLSystem = std::make_shared<LSystem>(fullPath);
+        currentGenerator = std::make_shared<LSystemGenerator>(currentLSystem);
+        currentSequence = currentGenerator->generateSequence(currentIterations);
+        printf("Generated sequence length: %zu\n", currentSequence.length());
+        needsRedraw = true;
+    }
+    catch (const std::exception& e) {
+        printf("Error loading L-system: %s\n", e.what());
+        throw;
+    }
+}
 
-#if defined(IMGUI_IMPL_OPENGL_ES2)
-        const char* glsl_version = "#version 100";
-        glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 2);
-        glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 0);
-        glfwWindowHint(GLFW_CLIENT_API, GLFW_OPENGL_ES_API);
-#elif defined(__APPLE__)
-        const char* glsl_version = "#version 150";
-        glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
-        glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 2);
-        glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
-        glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
-#else
-        const char* glsl_version = "#version 130";
-        glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
-        glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 0);
-#endif
+void drawLSystemDemo() {
+    ImGui::Begin("L-System Fractals");
 
-        GLFWwindow* window = glfwCreateWindow(300, 500, "CG Lab with OpenCV and ImGui", NULL, NULL);
-        if (window == NULL)
-            return 1;
-        glfwMakeContextCurrent(window);
-        glfwSwapInterval(1);
+    // Выбор L-системы
+    if (ImGui::Combo("Fractal Type", &selectedLSystem,
+        "Sierpinski Curve\0Koch Curve\0Simple Tree\0Random Tree\0Dragon Curve\0Koch Island\0Hilbert Curve\0Gosper Curve\0Hexagonal Tiling\0")) {
+        printf("Selected L-system: %d - %s\n", selectedLSystem, lSystemFiles[selectedLSystem].c_str());
+        try {
+            loadLSystem(lSystemFiles[selectedLSystem]);
+            currentIterations = iterationsCounts[selectedLSystem];
+        }
+        catch (const std::exception& e) {
+            printf("Failed to load L-system: %s\n", e.what());
+        }
+    }
 
-        IMGUI_CHECKVERSION();
-        ImGui::CreateContext();
-        ImGuiIO& io = ImGui::GetIO();
-        (void)io;
-        io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
-        io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;
+    // Параметры итераций
+    if (ImGui::SliderInt("Iterations", &currentIterations, 1, 15)) {
+        if (currentGenerator) {
+            currentSequence = currentGenerator->generateSequence(currentIterations);
+            needsRedraw = true;
+        }
+    }
 
-        ImGui::StyleColorsDark();
+    // Кнопка рисования
+    if (ImGui::Button("Draw Fractal") || needsRedraw) {
+        if (currentGenerator && currentLSystem && !lsystem_running) {
+            printf("=== DRAWING FRACTAL ===\n");
+            currentSequence = currentGenerator->generateSequence(currentIterations);
+            lsystem_running = true;
 
-        ImGui_ImplGlfw_InitForOpenGL(window, true);
-        ImGui_ImplOpenGL3_Init(glsl_version);
+            // Запускаем в отдельном потоке для анимации
+            std::thread([&]() {
+                FractalDrawer drawer(lsystemCanvas);
+                drawer.draw(currentSequence, currentLSystem->angle, 10.0f);
+                }).detach();
 
-        canvas = cv::Mat(HEIGHT, WIDTH, CV_8UC3, cv::Scalar(255, 255, 255));
-        lp = cv::Point(0, (int)randomFloat(0, HEIGHT));
-        points.push_back(lp);
-        rp = cv::Point(WIDTH, (int)randomFloat(0, HEIGHT));
-        points.push_back(rp);
-        cv::line(canvas, lp, rp, cv::Scalar(0, 0, 0));
-        cv::namedWindow("Canvas", cv::WINDOW_AUTOSIZE);
+            needsRedraw = false;
+        }
+    }
 
-        while (!glfwWindowShouldClose(window)) {
-            glfwPollEvents();
+    // Отображение прогресса
+    if (lsystem_running) {
+        ImGui::SameLine();
+        ImGui::Text("Drawing... %d/%d", current_draw_step, total_draw_steps);
+    }
 
-            ImGui_ImplOpenGL3_NewFrame();
-            ImGui_ImplGlfw_NewFrame();
-            ImGui::NewFrame();
+    // Информация о текущей системе
+    if (currentLSystem) {
+        ImGui::Separator();
+        ImGui::Text("Axiom: %s", currentLSystem->axiom.c_str());
+        ImGui::Text("Angle: %.1f", currentLSystem->angle);
+        ImGui::Text("Start Direction: %.1f", currentLSystem->startDirection);
+        ImGui::Text("Sequence length: %zu", currentSequence.length());
+        ImGui::Text("Rules:");
+        for (const auto& rule : currentLSystem->rules) {
+            ImGui::Text("  %c -> %s", rule.first, rule.second.c_str());
+        }
+    }
 
-            ImGui::SetNextWindowSize(ImVec2(300, 500), ImGuiCond_Once);
-            ImGui::Begin("Controls");
+    ImGui::End();
+}
+
+// Midpoint Displacement (существующий код)
+std::vector<cv::Point> points;
+cv::Point lp, rp;
+int steps = 5;
+float R = 0.5f;
+
+bool midpoint_running = false;
+int current_step = 0;
+int steps_total = 0;
+
+float randomFloat(float min, float max) {
+    static std::mt19937 rng(std::random_device{}());
+    std::uniform_real_distribution<float> dist(min, max);
+    return dist(rng);
+}
+
+void redrawMidpoint() {
+    midpointCanvas = cv::Scalar(255, 255, 255);
+    for (size_t i = 0; i < points.size() - 1; i++) {
+        cv::line(midpointCanvas, points[i], points[i + 1], cv::Scalar(0, 0, 0));
+    }
+}
+
+void MidpointDisplacementStep() {
+    auto it = points.begin() + 1;
+    while (it != points.end()) {
+        auto a = *(it - 1);
+        auto b = *it;
+        float mid_x = (b.x + a.x) / 2.0f;
+        float length = (b.x - a.x) / 2.0f;
+        float mid_y = (b.y + a.y) / 2.0f + randomFloat(-R * length, R * length);
+        it = points.insert(it, cv::Point(mid_x, mid_y));
+        it += 2;
+    }
+}
+
+static void glfw_error_callback(int error, const char* description) {
+    fprintf(stderr, "Glfw Error %d: %s\n", error, description);
+}
+
+int App::run() {
+    glfwSetErrorCallback(glfw_error_callback);
+    if (!glfwInit())
+        return 1;
+
+    // Отладочная информация о текущей директории
+    printf("=== CURRENT DIRECTORY INFO ===\n");
+    printCurrentDirectory();
+
+    // Проверяем файлы перед загрузкой
+    checkLSystemFiles();
+
+    const char* glsl_version = "#version 130";
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 0);
+
+    GLFWwindow* window = glfwCreateWindow(350, 800, "CG Lab with OpenCV and ImGui", NULL, NULL);
+    if (window == NULL)
+        return 1;
+    glfwMakeContextCurrent(window);
+    glfwSwapInterval(1);
+
+    IMGUI_CHECKVERSION();
+    ImGui::CreateContext();
+    ImGuiIO& io = ImGui::GetIO();
+    (void)io;
+    io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
+
+    ImGui::StyleColorsDark();
+
+    ImGui_ImplGlfw_InitForOpenGL(window, true);
+    ImGui_ImplOpenGL3_Init(glsl_version);
+
+    // Инициализация канвасов
+    midpointCanvas = cv::Mat(CANVAS_HEIGHT, CANVAS_WIDTH, CV_8UC3, cv::Scalar(255, 255, 255));
+    lsystemCanvas = cv::Mat(CANVAS_HEIGHT, CANVAS_WIDTH, CV_8UC3, cv::Scalar(255, 255, 255));
+
+    // Инициализация L-систем
+    printf("=== INITIALIZING L-SYSTEMS ===\n");
+
+    // Загружаем первую L-систему из файла
+    try {
+        loadLSystem(lSystemFiles[0]);
+    }
+    catch (const std::exception& e) {
+        printf("Failed to load initial L-system: %s\n", e.what());
+        return 1;
+    }
+
+    // Инициализация Midpoint Displacement
+    lp = cv::Point(0, (int)randomFloat(0, CANVAS_HEIGHT));
+    points.push_back(lp);
+    rp = cv::Point(CANVAS_WIDTH, (int)randomFloat(0, CANVAS_HEIGHT));
+    points.push_back(rp);
+    redrawMidpoint();
+
+    // Создание окон для отображения канвасов
+    cv::namedWindow("Midpoint Displacement", cv::WINDOW_AUTOSIZE);
+    cv::namedWindow("L-System Fractals", cv::WINDOW_AUTOSIZE);
+
+    printf("Windows created. Starting main loop...\n");
+
+    while (!glfwWindowShouldClose(window)) {
+        glfwPollEvents();
+
+        ImGui_ImplOpenGL3_NewFrame();
+        ImGui_ImplGlfw_NewFrame();
+        ImGui::NewFrame();
+
+        // Окно выбора алгоритма
+        ImGui::SetNextWindowSize(ImVec2(330, 100), ImGuiCond_Once);
+        ImGui::Begin("Algorithm Selection");
+
+        static int algorithm = 0;
+        ImGui::RadioButton("Midpoint Displacement", &algorithm, 0);
+        ImGui::RadioButton("L-System Fractals", &algorithm, 1);
+
+        ImGui::End();
+
+        if (algorithm == 0) {
+            // Midpoint Displacement UI
+            ImGui::SetNextWindowSize(ImVec2(330, 300), ImGuiCond_Once);
+            ImGui::Begin("Midpoint Displacement Controls");
+
             ImGui::SliderFloat("R", &R, 0.0f, 1.0f);
             if (R < 0.0f) R = 0.0f;
             if (R > 1.0f) R = 1.0f;
@@ -125,64 +584,76 @@ namespace Lab05 {
 
             ImGui::Separator();
             if (ImGui::Button("Apply")) {
-                /*points.erase(points.begin() + 1, points.end() - 1);
-                MidpointDisplacement();*/
                 points.erase(points.begin() + 1, points.end() - 1);
                 midpoint_running = true;
                 current_step = 0;
                 steps_total = steps;
-                redraw();
-                //last_anim_time = std::chrono::high_resolution_clock::now();
+                redrawMidpoint();
             }
+
             static auto last_anim_time = std::chrono::high_resolution_clock::now();
             if (midpoint_running) {
                 auto now = std::chrono::high_resolution_clock::now();
                 float dt = std::chrono::duration<float>(now - last_anim_time).count();
                 if (dt > 0.5f) {
                     MidpointDisplacementStep();
-                    redraw();
+                    redrawMidpoint();
                     last_anim_time = now;
                     current_step += 1;
                     if (current_step >= steps_total)
                         midpoint_running = false;
                 }
             }
+
             ImGui::SameLine();
             if (ImGui::Button("Random")) {
                 points.clear();
-                lp = cv::Point(0, (int)randomFloat(0, HEIGHT));
+                lp = cv::Point(0, (int)randomFloat(0, CANVAS_HEIGHT));
                 points.push_back(lp);
-                rp = cv::Point(WIDTH, (int)randomFloat(0, HEIGHT));
+                rp = cv::Point(CANVAS_WIDTH, (int)randomFloat(0, CANVAS_HEIGHT));
                 points.push_back(rp);
-                cv::line(canvas, lp, rp, cv::Scalar(0, 0, 0));
-                redraw();
+                redrawMidpoint();
             }
+
+            // Отображение текущего шага
+            if (midpoint_running) {
+                ImGui::Text("Step: %d/%d", current_step, steps_total);
+            }
+
             ImGui::End();
-
-            ImGui::Render();
-            int display_w, display_h;
-            glfwGetFramebufferSize(window, &display_w, &display_h);
-            glViewport(0, 0, display_w, display_h);
-            glClearColor(0.45f, 0.55f, 0.60f, 1.00f);
-            glClear(GL_COLOR_BUFFER_BIT);
-            ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
-
-            cv::imshow("Canvas", canvas);
-            cv::waitKey(1);
-
-            glfwSwapBuffers(window);
+        }
+        else {
+            // L-System UI
+            drawLSystemDemo();
         }
 
-        ImGui_ImplOpenGL3_Shutdown();
-        ImGui_ImplGlfw_Shutdown();
-        ImGui::DestroyContext();
+        ImGui::Render();
+        int display_w, display_h;
+        glfwGetFramebufferSize(window, &display_w, &display_h);
+        glViewport(0, 0, display_w, display_h);
+        glClearColor(0.45f, 0.55f, 0.60f, 1.00f);
+        glClear(GL_COLOR_BUFFER_BIT);
+        ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
 
-        glfwDestroyWindow(window);
-        glfwTerminate();
-        return 0;
-	}
+        // Отображение соответствующих канвасов
+        if (algorithm == 0) {
+            cv::imshow("Midpoint Displacement", midpointCanvas);
+        }
+        else {
+            cv::imshow("L-System Fractals", lsystemCanvas);
+        }
 
-    static void glfw_error_callback(int error, const char* description) {
-        fprintf(stderr, "Glfw Error %d: %s\n", error, description);
+        cv::waitKey(1);
+
+        glfwSwapBuffers(window);
     }
+
+    ImGui_ImplOpenGL3_Shutdown();
+    ImGui_ImplGlfw_Shutdown();
+    ImGui::DestroyContext();
+
+    cv::destroyAllWindows();
+    glfwDestroyWindow(window);
+    glfwTerminate();
+    return 0;
 }
