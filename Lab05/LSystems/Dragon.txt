@@ -1,3 +1,4 @@
-FX 90 0
+X 90 0
+F>F
 X>X+YF+
 Y>-FX-Y

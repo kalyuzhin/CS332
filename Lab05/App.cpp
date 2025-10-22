@@ -313,7 +313,7 @@ void FractalDrawer::draw(const std::string& sequence, double angleIncrement, flo
     for (char symbol : sequence) {
         if (isalpha(symbol)) {
             if (selectedLSystem == 3) {
-                currentThickness = std::max(1.0f, 15.0f - branchDepth * 1.8f);
+                currentThickness = std::max(2.0f, 15.0f - branchDepth * 1.8f);
 
                 if (branchDepth < 2) {
                     currentColor = 80 - branchDepth * 10;

@@ -1,3 +1,4 @@
-A 60 0
-A>A-B--B+A++AA+B-
-B>+A-BB--B-A++A+B
+XF 60 0
+F>F
+X>X+YF++YF-FX--FXFX-YF+
+Y>-FX+YFYF++YF+FX--FX-Y

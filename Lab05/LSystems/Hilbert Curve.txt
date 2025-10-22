@@ -1,3 +1,4 @@
-A 90 0
-A>-BF+AFA+FB-
-B>+AF-BFB-FA+
+X 90 0
+F>F
+X>-YF+XFX+FY-
+Y>+XF-YFY-FX+
