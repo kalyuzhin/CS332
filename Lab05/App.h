@@ -2,70 +2,65 @@
 
 #include <string>
 #include <vector>
-#include <map>
+#include <unordered_map>
 #include <memory>
+#include <random>
+#include <stack>
+#include <queue>
 #include <opencv2/opencv.hpp>
 
 namespace Lab05 {
+
+    struct PointF {
+        float x, y;
+        PointF() : x(0), y(0) {}
+        PointF(float x, float y) : x(x), y(y) {}
+    };
+
+    class LSystem {
+    public:
+        std::string axiom;
+        double angle;
+        double startDirection;
+        std::unordered_map<char, std::string> rules;
+
+        LSystem(const std::string& filePath);
+    };
+
+    class LSystemGenerator {
+    private:
+        std::shared_ptr<LSystem> lSystem;
+
+    public:
+        LSystemGenerator(std::shared_ptr<LSystem> lsystem);
+        std::string generateSequence(int iterations);
+    };
+
+    class FractalDrawer {
+    private:
+        cv::Mat canvas;
+        PointF currentPosition;
+        double currentDirection;
+        double minX, maxX, minY, maxY;
+        double scaleCoef;
+
+        std::stack<std::tuple<PointF, double, float, int, float>> stateStack;
+        std::queue<double> randomAngles;
+        std::mt19937 rng;
+
+    public:
+        FractalDrawer(cv::Mat targetCanvas);
+
+        PointF calculateNextPosition(float stepLength, PointF position, double direction);
+        void drawLine(const PointF& p1, const PointF& p2, int colorValue, float thickness);
+        void calculateBounds(const std::string& sequence, double angleIncrement, float stepLength, float stepDecreasePercent = 0.0f);
+        void draw(const std::string& sequence, double angleIncrement, float stepLength);
+        void drawAdvancedTree(const std::string& sequence, double angleIncrement, float stepLength);
+    };
 
     class App {
     public:
         int run();
     };
 
-} // namespace Lab05
-
-// L-система классы
-struct LSystem {
-    std::string axiom;
-    double angle;
-    double startDirection;
-    std::map<char, std::string> rules;
-
-    LSystem(const std::string& filePath);
-};
-
-class LSystemGenerator {
-private:
-    std::shared_ptr<LSystem> lSystem;
-
-public:
-    LSystemGenerator(std::shared_ptr<LSystem> lsystem);
-    std::string generateSequence(int iterations);
-};
-
-struct PointF {
-    float x, y;
-    PointF(float x = 0, float y = 0) : x(x), y(y) {}
-};
-
-class FractalDrawer {
-private:
-    cv::Mat& canvas;
-    PointF currentPosition;
-    double currentDirection;
-    double scaleCoef;
-    double minX, minY, maxX, maxY;
-
-    std::vector<double> anglesQueue;
-
-    PointF calculateNextPosition(float stepLength, PointF position, double direction);
-    void drawLine(const PointF& p1, const PointF& p2, int colorValue, float thickness);
-
-public:
-    FractalDrawer(cv::Mat& canvas) : canvas(canvas) {
-        currentPosition = PointF(0, 0);
-        currentDirection = 0.0;
-        scaleCoef = 1.0;
-        minX = minY = maxX = maxY = 0.0;
-    }
-
-    void calculateBounds(const std::string& sequence, double angleIncrement, float stepLength);
-    void draw(const std::string& sequence, double angleIncrement, float stepLength);
-};
-
-// Вспомогательные функции
-void drawLSystemDemo();
-void loadLSystem(const std::string& filename);
-void checkLSystemFiles();
-std::string findLSystemFile(const std::string& filename);
+}

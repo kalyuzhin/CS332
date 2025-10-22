@@ -12,11 +12,10 @@
 
 using namespace Lab05;
 
-// Глобальные переменные для L-системы
 static std::shared_ptr<LSystem> currentLSystem;
 static std::shared_ptr<LSystemGenerator> currentGenerator;
 static std::string currentSequence;
-static int currentIterations = 5;
+static int currentIterations = 1;
 static std::vector<std::string> lSystemFiles = {
     "../Lab05/LSystems/Sierpinski Curve.txt",
     "../Lab05/LSystems/Koch Curve.txt",
@@ -26,24 +25,22 @@ static std::vector<std::string> lSystemFiles = {
     "../Lab05/LSystems/Koch Island.txt",
     "../Lab05/LSystems/Hilbert Curve.txt",
     "../Lab05/LSystems/Gosper Curve.txt",
-    "../Lab05/LSystems/Hexagonal Tiling.txt"
+    "../Lab05/LSystems/Hexagonal Tiling.txt",
+    "../Lab05/LSystems/Advanced Tree.txt"
 };
-static std::vector<int> iterationsCounts = { 1, 1, 1, 1, 1, 1, 1, 1, 1 };
+static std::vector<int> iterationsCounts = { 1, 1, 1, 1, 1, 1, 1, 1, 1, 4 };
 static int selectedLSystem = 0;
 
-// Параметры рисования
 static bool needsRedraw = false;
 static bool lsystem_running = false;
 static int current_draw_step = 0;
 static int total_draw_steps = 0;
 
-// Канвасы для разных алгоритмов
 static cv::Mat midpointCanvas;
 static cv::Mat lsystemCanvas;
 const int CANVAS_WIDTH = 800;
 const int CANVAS_HEIGHT = 600;
 
-// Вспомогательные функции для работы с файлами
 void printCurrentDirectory() {
     try {
         std::string currentPath = std::filesystem::current_path().string();
@@ -55,7 +52,6 @@ void printCurrentDirectory() {
 }
 
 std::string findLSystemFile(const std::string& filename) {
-    // Пробуем разные пути относительно текущей директории
     std::vector<std::string> paths = {
         filename,
         "../" + filename,
@@ -112,7 +108,6 @@ void checkLSystemFiles() {
     }
 }
 
-// Реализация LSystem
 LSystem::LSystem(const std::string& filePath) {
     std::ifstream file(filePath);
     if (!file.is_open()) {
@@ -120,7 +115,6 @@ LSystem::LSystem(const std::string& filePath) {
     }
 
     std::string line;
-    // Первая строка: аксиома, угол, начальное направление
     if (std::getline(file, line)) {
         std::istringstream iss(line);
         std::string axiomStr, angleStr, directionStr;
@@ -137,26 +131,21 @@ LSystem::LSystem(const std::string& filePath) {
             axiom.c_str(), angle, startDirection);
     }
 
-    // Остальные строки: правила
     int ruleCount = 0;
     while (std::getline(file, line)) {
-        // Пропускаем пустые строки
         if (line.empty()) continue;
 
-        // Убираем лишние пробелы в начале и конце
         size_t start = line.find_first_not_of(" \t");
         if (start == std::string::npos) continue;
 
         size_t end = line.find_last_not_of(" \t");
         std::string trimmedLine = line.substr(start, end - start + 1);
 
-        // Ищем разделитель '>'
         size_t pos = trimmedLine.find('>');
         if (pos != std::string::npos && pos > 0) {
             char key = trimmedLine[0];
             std::string value = trimmedLine.substr(pos + 1);
 
-            // Убираем лишние пробелы из значения
             size_t valueStart = value.find_first_not_of(" \t");
             if (valueStart != std::string::npos) {
                 value = value.substr(valueStart);
@@ -171,7 +160,6 @@ LSystem::LSystem(const std::string& filePath) {
     printf("Loaded L-system: %zu rules total\n", rules.size());
 }
 
-// Реализация LSystemGenerator
 LSystemGenerator::LSystemGenerator(std::shared_ptr<LSystem> lsystem)
     : lSystem(lsystem) {
 }
@@ -198,7 +186,11 @@ std::string LSystemGenerator::generateSequence(int iterations) {
     return current;
 }
 
-// Реализация FractalDrawer
+FractalDrawer::FractalDrawer(cv::Mat targetCanvas)
+    : canvas(targetCanvas), currentPosition(PointF(0, 0)),
+    currentDirection(0), rng(std::random_device{}()) {
+}
+
 PointF FractalDrawer::calculateNextPosition(float stepLength, PointF position, double direction) {
     double radianAngle = direction * (3.14159 / 180.0);
     float nextX = position.x + static_cast<float>(stepLength * cos(radianAngle));
@@ -210,15 +202,15 @@ void FractalDrawer::drawLine(const PointF& p1, const PointF& p2, int colorValue,
     cv::Point cvP1(static_cast<int>(p1.x), static_cast<int>(p1.y));
     cv::Point cvP2(static_cast<int>(p2.x), static_cast<int>(p2.y));
 
-    // Ограничиваем цвет в диапазоне 0-255
     int color = std::max(0, std::min(255, colorValue));
     cv::Scalar lineColor(color, color, color);
 
     cv::line(canvas, cvP1, cvP2, lineColor, static_cast<int>(thickness));
 }
 
-void FractalDrawer::calculateBounds(const std::string& sequence, double angleIncrement, float stepLength) {
+void FractalDrawer::calculateBounds(const std::string& sequence, double angleIncrement, float stepLength, float stepDecreasePercent) {
     std::stack<std::tuple<PointF, double, float>> stack;
+    randomAngles = std::queue<double>();
 
     minX = maxX = currentPosition.x;
     minY = maxY = currentPosition.y;
@@ -226,9 +218,11 @@ void FractalDrawer::calculateBounds(const std::string& sequence, double angleInc
     PointF currentPos = currentPosition;
     double currentDir = currentDirection;
     float currentStep = stepLength;
+    double initialAngle = angleIncrement;
 
     for (char symbol : sequence) {
         if (isalpha(symbol)) {
+            currentStep -= currentStep * (stepDecreasePercent / 100.0f);
             PointF nextPos = calculateNextPosition(currentStep, currentPos, currentDir);
 
             minX = std::min(minX, static_cast<double>(nextPos.x));
@@ -259,74 +253,75 @@ void FractalDrawer::calculateBounds(const std::string& sequence, double angleInc
                 }
                 break;
             case '@':
-                static std::mt19937 rng(std::random_device{}());
-                std::uniform_real_distribution<double> dist(0, angleIncrement);
-                currentDir += dist(rng);
+                std::uniform_real_distribution<double> dist(0, initialAngle);
+                double randomAngle = dist(rng);
+                randomAngles.push(randomAngle);
+                angleIncrement = randomAngle;
                 break;
             }
         }
     }
 }
 
-void FractalDrawer::draw(const std::string& sequence, double angleIncrement, float stepLength) {
-    printf("Starting draw: sequence length=%zu, angle=%.1f, step=%.1f\n",
-        sequence.length(), angleIncrement, stepLength);
+void FractalDrawer::drawAdvancedTree(const std::string& sequence, double angleIncrement, float stepLength) {
+    printf("Starting advanced tree draw\n");
 
-    // Очищаем канвас
     canvas = cv::Scalar(255, 255, 255);
 
-    // Инициализация для calculateBounds
-    currentPosition = PointF(0, 0);
-    currentDirection = currentLSystem->startDirection;
-    minX = minY = maxX = maxY = 0.0;
+    currentPosition = PointF(CANVAS_WIDTH / 2, CANVAS_HEIGHT - 50);
+    currentDirection = 90;
 
-    calculateBounds(sequence, angleIncrement, stepLength);
+    float stepDecreasePercent = 15.0f;
+    int colorChangeValue = 18;
+    float penThicknessDecreasePercent = 15.0f;
 
-    printf("Bounds: minX=%.1f, maxX=%.1f, minY=%.1f, maxY=%.1f\n", minX, maxX, minY, maxY);
+    float initialStepLength = stepLength;
+    int initialColor = 80;
+    float initialThickness = 20.0f;
 
-    // Масштабирование и центрирование
+    calculateBounds(sequence, angleIncrement, stepLength, stepDecreasePercent);
+
     double width = maxX - minX;
     double height = maxY - minY;
 
     if (width == 0 || height == 0) {
-        printf("Error: Zero bounds - nothing to draw\n");
+        printf("Error: Zero bounds\n");
         return;
     }
 
-    double scaleX = (CANVAS_WIDTH - 40) / width;
-    double scaleY = (CANVAS_HEIGHT - 40) / height;
+    double scaleX = (CANVAS_WIDTH - 80) / width;
+    double scaleY = (CANVAS_HEIGHT - 80) / height;
     scaleCoef = std::min(scaleX, scaleY);
 
-    double offsetX = (CANVAS_WIDTH - width * scaleCoef) / 2 - minX * scaleCoef;
-    double offsetY = (CANVAS_HEIGHT - height * scaleCoef) / 2 - minY * scaleCoef;
+    double offsetX = (CANVAS_WIDTH - width * scaleCoef) / 2;
+    double offsetY = (CANVAS_HEIGHT - height * scaleCoef) / 2;
 
-    printf("Scale: %.3f, Offset: (%.1f, %.1f)\n", scaleCoef, offsetX, offsetY);
-
-    // Настройка начальной позиции
-    currentPosition = PointF(static_cast<float>(offsetX), static_cast<float>(offsetY));
-    currentDirection = currentLSystem->startDirection;
+    currentPosition = PointF(static_cast<float>(-minX * scaleCoef + offsetX),
+        static_cast<float>(-minY * scaleCoef + offsetY));
+    currentDirection = 90;
 
     std::stack<std::tuple<PointF, double, float, int, float>> stack;
     PointF currentPos = currentPosition;
     double currentDir = currentDirection;
     float currentStep = stepLength * static_cast<float>(scaleCoef);
-    int currentColor = 0;
-    float currentThickness = 2.0f;
+    int currentColor = initialColor;
+    float currentThickness = initialThickness;
 
-    int linesDrawn = 0;
-    total_draw_steps = sequence.length();
-    current_draw_step = 0;
+    double initialAngle = angleIncrement;
 
     for (char symbol : sequence) {
         if (isalpha(symbol)) {
-            // Рисуем линию
+            currentColor += colorChangeValue;
+            currentColor = std::min(200, currentColor);
+
+            currentThickness -= currentThickness * (penThicknessDecreasePercent / 100.0f);
+            currentThickness = std::max(1.0f, currentThickness);
+
+            currentStep -= currentStep * (stepDecreasePercent / 100.0f);
+
             PointF nextPos = calculateNextPosition(currentStep, currentPos, currentDir);
             drawLine(currentPos, nextPos, currentColor, currentThickness);
             currentPos = nextPos;
-            linesDrawn++;
-
-            // Микро-задержка для визуализации процесса
-            //std::this_thread::sleep_for(std::chrono::microseconds(10));
         }
         else {
             switch (symbol) {
@@ -351,28 +346,97 @@ void FractalDrawer::draw(const std::string& sequence, double angleIncrement, flo
                 }
                 break;
             case '@':
-                // Для Random Tree - случайный угол
-                static std::mt19937 rng(std::random_device{}());
-                std::uniform_real_distribution<double> dist(0, angleIncrement);
-                currentDir += dist(rng);
+                if (!randomAngles.empty()) {
+                    angleIncrement = randomAngles.front();
+                    randomAngles.pop();
+                }
                 break;
             }
         }
-
-        current_draw_step++;
-
-        // Обновляем отображение каждые 100 шагов
-        if (current_draw_step % 100 == 0) {
-            cv::imshow("L-System Fractals", canvas);
-            cv::waitKey(1);
-        }
     }
 
-    printf("Draw completed. Lines drawn: %d\n", linesDrawn);
+    printf("Advanced tree draw completed\n");
     lsystem_running = false;
 }
 
-// Функции для работы с L-системами
+void FractalDrawer::draw(const std::string& sequence, double angleIncrement, float stepLength) {
+    printf("Starting draw: sequence length=%zu\n", sequence.length());
+
+    canvas = cv::Scalar(255, 255, 255);
+
+    currentPosition = PointF(0, 0);
+    currentDirection = currentLSystem->startDirection;
+    minX = minY = maxX = maxY = 0.0;
+
+    calculateBounds(sequence, angleIncrement, stepLength, 0.0f);
+
+    double width = maxX - minX;
+    double height = maxY - minY;
+
+    if (width == 0 || height == 0) {
+        printf("Error: Zero bounds\n");
+        return;
+    }
+
+    double scaleX = (CANVAS_WIDTH - 40) / width;
+    double scaleY = (CANVAS_HEIGHT - 40) / height;
+    scaleCoef = std::min(scaleX, scaleY);
+
+    double offsetX = (CANVAS_WIDTH - width * scaleCoef) / 2 - minX * scaleCoef;
+    double offsetY = (CANVAS_HEIGHT - height * scaleCoef) / 2 - minY * scaleCoef;
+
+    currentPosition = PointF(static_cast<float>(offsetX), static_cast<float>(offsetY));
+    currentDirection = currentLSystem->startDirection;
+
+    std::stack<std::tuple<PointF, double, float, int, float>> stack;
+    PointF currentPos = currentPosition;
+    double currentDir = currentDirection;
+    float currentStep = stepLength * static_cast<float>(scaleCoef);
+    int currentColor = 0;
+    float currentThickness = 2.0f;
+
+    for (char symbol : sequence) {
+        if (isalpha(symbol)) {
+            PointF nextPos = calculateNextPosition(currentStep, currentPos, currentDir);
+            drawLine(currentPos, nextPos, currentColor, currentThickness);
+            currentPos = nextPos;
+        }
+        else {
+            switch (symbol) {
+            case '+':
+                currentDir += angleIncrement;
+                break;
+            case '-':
+                currentDir -= angleIncrement;
+                break;
+            case '[':
+                stack.push(std::make_tuple(currentPos, currentDir, currentStep, currentColor, currentThickness));
+                break;
+            case ']':
+                if (!stack.empty()) {
+                    auto savedState = stack.top();
+                    stack.pop();
+                    currentPos = std::get<0>(savedState);
+                    currentDir = std::get<1>(savedState);
+                    currentStep = std::get<2>(savedState);
+                    currentColor = std::get<3>(savedState);
+                    currentThickness = std::get<4>(savedState);
+                }
+                break;
+            case '@':
+                if (!randomAngles.empty()) {
+                    angleIncrement = randomAngles.front();
+                    randomAngles.pop();
+                }
+                break;
+            }
+        }
+    }
+
+    printf("Draw completed\n");
+    lsystem_running = false;
+}
+
 void loadLSystem(const std::string& filename) {
     try {
         std::string fullPath = findLSystemFile(filename);
@@ -392,9 +456,8 @@ void loadLSystem(const std::string& filename) {
 void drawLSystemDemo() {
     ImGui::Begin("L-System Fractals");
 
-    // Выбор L-системы
     if (ImGui::Combo("Fractal Type", &selectedLSystem,
-        "Sierpinski Curve\0Koch Curve\0Simple Tree\0Random Tree\0Dragon Curve\0Koch Island\0Hilbert Curve\0Gosper Curve\0Hexagonal Tiling\0")) {
+        "Sierpinski Curve\0Koch Curve\0Simple Tree\0Random Tree\0Dragon Curve\0Koch Island\0Hilbert Curve\0Gosper Curve\0Hexagonal Tiling\0Advanced Tree\0")) {
         printf("Selected L-system: %d - %s\n", selectedLSystem, lSystemFiles[selectedLSystem].c_str());
         try {
             loadLSystem(lSystemFiles[selectedLSystem]);
@@ -405,7 +468,6 @@ void drawLSystemDemo() {
         }
     }
 
-    // Параметры итераций
     if (ImGui::SliderInt("Iterations", &currentIterations, 1, 15)) {
         if (currentGenerator) {
             currentSequence = currentGenerator->generateSequence(currentIterations);
@@ -413,30 +475,31 @@ void drawLSystemDemo() {
         }
     }
 
-    // Кнопка рисования
     if (ImGui::Button("Draw Fractal") || needsRedraw) {
         if (currentGenerator && currentLSystem && !lsystem_running) {
             printf("=== DRAWING FRACTAL ===\n");
             currentSequence = currentGenerator->generateSequence(currentIterations);
             lsystem_running = true;
 
-            // Запускаем в отдельном потоке для анимации
             std::thread([&]() {
                 FractalDrawer drawer(lsystemCanvas);
-                drawer.draw(currentSequence, currentLSystem->angle, 10.0f);
+                if (selectedLSystem == 9) {
+                    drawer.drawAdvancedTree(currentSequence, currentLSystem->angle, 15.0f);
+                }
+                else {
+                    drawer.draw(currentSequence, currentLSystem->angle, 10.0f);
+                }
                 }).detach();
 
             needsRedraw = false;
         }
     }
 
-    // Отображение прогресса
     if (lsystem_running) {
         ImGui::SameLine();
         ImGui::Text("Drawing... %d/%d", current_draw_step, total_draw_steps);
     }
 
-    // Информация о текущей системе
     if (currentLSystem) {
         ImGui::Separator();
         ImGui::Text("Axiom: %s", currentLSystem->axiom.c_str());
@@ -452,7 +515,6 @@ void drawLSystemDemo() {
     ImGui::End();
 }
 
-// Midpoint Displacement (существующий код)
 std::vector<cv::Point> points;
 cv::Point lp, rp;
 int steps = 5;
@@ -497,11 +559,9 @@ int App::run() {
     if (!glfwInit())
         return 1;
 
-    // Отладочная информация о текущей директории
     printf("=== CURRENT DIRECTORY INFO ===\n");
     printCurrentDirectory();
 
-    // Проверяем файлы перед загрузкой
     checkLSystemFiles();
 
     const char* glsl_version = "#version 130";
@@ -525,14 +585,11 @@ int App::run() {
     ImGui_ImplGlfw_InitForOpenGL(window, true);
     ImGui_ImplOpenGL3_Init(glsl_version);
 
-    // Инициализация канвасов
     midpointCanvas = cv::Mat(CANVAS_HEIGHT, CANVAS_WIDTH, CV_8UC3, cv::Scalar(255, 255, 255));
     lsystemCanvas = cv::Mat(CANVAS_HEIGHT, CANVAS_WIDTH, CV_8UC3, cv::Scalar(255, 255, 255));
 
-    // Инициализация L-систем
     printf("=== INITIALIZING L-SYSTEMS ===\n");
 
-    // Загружаем первую L-систему из файла
     try {
         loadLSystem(lSystemFiles[0]);
     }
@@ -541,14 +598,12 @@ int App::run() {
         return 1;
     }
 
-    // Инициализация Midpoint Displacement
     lp = cv::Point(0, (int)randomFloat(0, CANVAS_HEIGHT));
     points.push_back(lp);
     rp = cv::Point(CANVAS_WIDTH, (int)randomFloat(0, CANVAS_HEIGHT));
     points.push_back(rp);
     redrawMidpoint();
 
-    // Создание окон для отображения канвасов
     cv::namedWindow("Midpoint Displacement", cv::WINDOW_AUTOSIZE);
     cv::namedWindow("L-System Fractals", cv::WINDOW_AUTOSIZE);
 
@@ -561,7 +616,6 @@ int App::run() {
         ImGui_ImplGlfw_NewFrame();
         ImGui::NewFrame();
 
-        // Окно выбора алгоритма
         ImGui::SetNextWindowSize(ImVec2(330, 100), ImGuiCond_Once);
         ImGui::Begin("Algorithm Selection");
 
@@ -572,7 +626,6 @@ int App::run() {
         ImGui::End();
 
         if (algorithm == 0) {
-            // Midpoint Displacement UI
             ImGui::SetNextWindowSize(ImVec2(330, 300), ImGuiCond_Once);
             ImGui::Begin("Midpoint Displacement Controls");
 
@@ -615,7 +668,6 @@ int App::run() {
                 redrawMidpoint();
             }
 
-            // Отображение текущего шага
             if (midpoint_running) {
                 ImGui::Text("Step: %d/%d", current_step, steps_total);
             }
@@ -623,7 +675,6 @@ int App::run() {
             ImGui::End();
         }
         else {
-            // L-System UI
             drawLSystemDemo();
         }
 
@@ -635,7 +686,6 @@ int App::run() {
         glClear(GL_COLOR_BUFFER_BIT);
         ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
 
-        // Отображение соответствующих канвасов
         if (algorithm == 0) {
             cv::imshow("Midpoint Displacement", midpointCanvas);
         }
