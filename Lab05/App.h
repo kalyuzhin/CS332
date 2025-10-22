@@ -55,7 +55,6 @@ namespace Lab05 {
         void drawLine(const PointF& p1, const PointF& p2, int colorValue, float thickness);
         void calculateBounds(const std::string& sequence, double angleIncrement, float stepLength, float stepDecreasePercent = 0.0f);
         void draw(const std::string& sequence, double angleIncrement, float stepLength);
-        void drawAdvancedTree(const std::string& sequence, double angleIncrement, float stepLength);
     };
 
     class App {

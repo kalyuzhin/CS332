@@ -25,10 +25,9 @@ static std::vector<std::string> lSystemFiles = {
     "../Lab05/LSystems/Koch Island.txt",
     "../Lab05/LSystems/Hilbert Curve.txt",
     "../Lab05/LSystems/Gosper Curve.txt",
-    "../Lab05/LSystems/Hexagonal Tiling.txt",
-    "../Lab05/LSystems/Advanced Tree.txt"
+    "../Lab05/LSystems/Hexagonal Tiling.txt"
 };
-static std::vector<int> iterationsCounts = { 1, 1, 1, 1, 1, 1, 1, 1, 1, 4 };
+static std::vector<int> iterationsCounts = { 1, 1, 1, 1, 1, 1, 1, 1, 1};
 static int selectedLSystem = 0;
 
 static bool needsRedraw = false;
@@ -263,102 +262,6 @@ void FractalDrawer::calculateBounds(const std::string& sequence, double angleInc
     }
 }
 
-void FractalDrawer::drawAdvancedTree(const std::string& sequence, double angleIncrement, float stepLength) {
-    printf("Starting advanced tree draw\n");
-
-    canvas = cv::Scalar(255, 255, 255);
-
-    currentPosition = PointF(CANVAS_WIDTH / 2, CANVAS_HEIGHT - 50);
-    currentDirection = 90;
-
-    float stepDecreasePercent = 15.0f;
-    int colorChangeValue = 18;
-    float penThicknessDecreasePercent = 15.0f;
-
-    float initialStepLength = stepLength;
-    int initialColor = 80;
-    float initialThickness = 20.0f;
-
-    calculateBounds(sequence, angleIncrement, stepLength, stepDecreasePercent);
-
-    double width = maxX - minX;
-    double height = maxY - minY;
-
-    if (width == 0 || height == 0) {
-        printf("Error: Zero bounds\n");
-        return;
-    }
-
-    double scaleX = (CANVAS_WIDTH - 80) / width;
-    double scaleY = (CANVAS_HEIGHT - 80) / height;
-    scaleCoef = std::min(scaleX, scaleY);
-
-    double offsetX = (CANVAS_WIDTH - width * scaleCoef) / 2;
-    double offsetY = (CANVAS_HEIGHT - height * scaleCoef) / 2;
-
-    currentPosition = PointF(static_cast<float>(-minX * scaleCoef + offsetX),
-        static_cast<float>(-minY * scaleCoef + offsetY));
-    currentDirection = 90;
-
-    std::stack<std::tuple<PointF, double, float, int, float>> stack;
-    PointF currentPos = currentPosition;
-    double currentDir = currentDirection;
-    float currentStep = stepLength * static_cast<float>(scaleCoef);
-    int currentColor = initialColor;
-    float currentThickness = initialThickness;
-
-    double initialAngle = angleIncrement;
-
-    for (char symbol : sequence) {
-        if (isalpha(symbol)) {
-            currentColor += colorChangeValue;
-            currentColor = std::min(200, currentColor);
-
-            currentThickness -= currentThickness * (penThicknessDecreasePercent / 100.0f);
-            currentThickness = std::max(1.0f, currentThickness);
-
-            currentStep -= currentStep * (stepDecreasePercent / 100.0f);
-
-            PointF nextPos = calculateNextPosition(currentStep, currentPos, currentDir);
-            drawLine(currentPos, nextPos, currentColor, currentThickness);
-            currentPos = nextPos;
-        }
-        else {
-            switch (symbol) {
-            case '+':
-                currentDir += angleIncrement;
-                break;
-            case '-':
-                currentDir -= angleIncrement;
-                break;
-            case '[':
-                stack.push(std::make_tuple(currentPos, currentDir, currentStep, currentColor, currentThickness));
-                break;
-            case ']':
-                if (!stack.empty()) {
-                    auto savedState = stack.top();
-                    stack.pop();
-                    currentPos = std::get<0>(savedState);
-                    currentDir = std::get<1>(savedState);
-                    currentStep = std::get<2>(savedState);
-                    currentColor = std::get<3>(savedState);
-                    currentThickness = std::get<4>(savedState);
-                }
-                break;
-            case '@':
-                if (!randomAngles.empty()) {
-                    angleIncrement = randomAngles.front();
-                    randomAngles.pop();
-                }
-                break;
-            }
-        }
-    }
-
-    printf("Advanced tree draw completed\n");
-    lsystem_running = false;
-}
-
 void FractalDrawer::draw(const std::string& sequence, double angleIncrement, float stepLength) {
     printf("Starting draw: sequence length=%zu\n", sequence.length());
 
@@ -392,11 +295,36 @@ void FractalDrawer::draw(const std::string& sequence, double angleIncrement, flo
     PointF currentPos = currentPosition;
     double currentDir = currentDirection;
     float currentStep = stepLength * static_cast<float>(scaleCoef);
+
     int currentColor = 0;
     float currentThickness = 2.0f;
 
+    if (selectedLSystem == 3) {
+        currentPosition = PointF(CANVAS_WIDTH / 2, CANVAS_HEIGHT - 50); 
+        currentPos = currentPosition;
+        currentDirection = 90; 
+        currentThickness = 15.0f; 
+        currentColor = 80;
+    }
+
+    int branchDepth = 0;
+    const int MAX_DEPTH = 8;
+
     for (char symbol : sequence) {
         if (isalpha(symbol)) {
+            if (selectedLSystem == 3) {
+                currentThickness = std::max(1.0f, 15.0f - branchDepth * 1.8f);
+
+                if (branchDepth < 2) {
+                    currentColor = 80 - branchDepth * 10;
+                }
+                else {
+                    currentColor = std::min(150, 60 + branchDepth * 15);
+                }
+
+                currentStep *= 0.92f;
+            }
+
             PointF nextPos = calculateNextPosition(currentStep, currentPos, currentDir);
             drawLine(currentPos, nextPos, currentColor, currentThickness);
             currentPos = nextPos;
@@ -411,6 +339,9 @@ void FractalDrawer::draw(const std::string& sequence, double angleIncrement, flo
                 break;
             case '[':
                 stack.push(std::make_tuple(currentPos, currentDir, currentStep, currentColor, currentThickness));
+                if (selectedLSystem == 3) {
+                    branchDepth++;
+                }
                 break;
             case ']':
                 if (!stack.empty()) {
@@ -421,6 +352,9 @@ void FractalDrawer::draw(const std::string& sequence, double angleIncrement, flo
                     currentStep = std::get<2>(savedState);
                     currentColor = std::get<3>(savedState);
                     currentThickness = std::get<4>(savedState);
+                    if (selectedLSystem == 3) {
+                        branchDepth--;
+                    }
                 }
                 break;
             case '@':
@@ -483,12 +417,8 @@ void drawLSystemDemo() {
 
             std::thread([&]() {
                 FractalDrawer drawer(lsystemCanvas);
-                if (selectedLSystem == 9) {
-                    drawer.drawAdvancedTree(currentSequence, currentLSystem->angle, 15.0f);
-                }
-                else {
-                    drawer.draw(currentSequence, currentLSystem->angle, 10.0f);
-                }
+                float stepLen = (selectedLSystem == 3) ? 25.0f : 10.0f;
+                drawer.draw(currentSequence, currentLSystem->angle, stepLen);
                 }).detach();
 
             needsRedraw = false;
@@ -559,7 +489,6 @@ int App::run() {
     if (!glfwInit())
         return 1;
 
-    printf("=== CURRENT DIRECTORY INFO ===\n");
     printCurrentDirectory();
 
     checkLSystemFiles();
@@ -588,8 +517,6 @@ int App::run() {
     midpointCanvas = cv::Mat(CANVAS_HEIGHT, CANVAS_WIDTH, CV_8UC3, cv::Scalar(255, 255, 255));
     lsystemCanvas = cv::Mat(CANVAS_HEIGHT, CANVAS_WIDTH, CV_8UC3, cv::Scalar(255, 255, 255));
 
-    printf("=== INITIALIZING L-SYSTEMS ===\n");
-
     try {
         loadLSystem(lSystemFiles[0]);
     }
@@ -606,8 +533,6 @@ int App::run() {
 
     cv::namedWindow("Midpoint Displacement", cv::WINDOW_AUTOSIZE);
     cv::namedWindow("L-System Fractals", cv::WINDOW_AUTOSIZE);
-
-    printf("Windows created. Starting main loop...\n");
 
     while (!glfwWindowShouldClose(window)) {
         glfwPollEvents();
