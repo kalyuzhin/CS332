@@ -8,6 +8,8 @@ add_executable(CS332 main.cpp
         Lab03/Task1/task1.cpp
         Lab03/Task1/task1.h
         provider.h
+        indiv/task1.cpp
+        indiv/task1.h
         #        Lab03/Task3/Task3.cpp
         #        Lab03/Task3/Task3.h
         #        Lab03/Task2/Task2.cpp)
