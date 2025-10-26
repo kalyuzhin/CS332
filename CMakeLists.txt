@@ -3,15 +3,18 @@ project(CS332)
 
 set(CMAKE_CXX_STANDARD 20)
 
-
-add_executable(CS332 main.cpp
-        Lab03/Task1/task1.cpp
-        Lab03/Task1/task1.h
-        provider.h
-        #        Lab03/Task3/Task3.cpp
-        #        Lab03/Task3/Task3.h
-        #        Lab03/Task2/Task2.cpp)
+set(SOURCES
+    main.cpp
+    provider.h
 )
+
+file(GLOB_RECURSE LAB04_FILES "Lab04/*.cpp" "Lab04/*.h")
+list(APPEND SOURCES ${LAB04_FILES})
+file(GLOB_RECURSE LAB05_FILES "Lab05/*.cpp" "Lab05/*.h")
+list(APPEND SOURCES ${LAB05_FILES})
+message(STATUS "Sources: ${SOURCES}")
+
+add_executable(CS332 ${SOURCES})
 
 if (DEFINED ENV{OpenCV_DIR})
     set(OpenCV_DIR $ENV{OpenCV_DIR})
@@ -52,6 +55,7 @@ target_link_libraries(CS332
     glfw
     ${WIN32_LIBRARIES}
 )
+target_include_directories(CS332 PRIVATE ${CMAKE_SOURCE_DIR})
 target_include_directories(CS332 PRIVATE ${OpenCV_INCLUDE_DIRS})
 target_include_directories(CS332 PRIVATE build/imgui build/imgui/backends)
 if (WIN32)
