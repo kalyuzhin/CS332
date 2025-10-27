@@ -1,4 +1,4 @@
-#include "provider.h"
+#include "../provider.h"
 #include "App.h"
 
 namespace Lab04 {
@@ -118,9 +118,9 @@ namespace Lab04 {
 
     std::string classifyPointRelativeToEdge(cv::Point p, cv::Point p1, cv::Point p2) {
         double cross_product = (p.x - p1.x) * (p2.y - p1.y) - (p.y - p1.y) * (p2.x - p1.x);
-        if (cross_product > 0) return "Слева";
-        if (cross_product < 0) return "Справа";
-        return "На ребре";
+        if (cross_product > 0) return "пїЅпїЅпїЅпїЅпїЅ";
+        if (cross_product < 0) return "пїЅпїЅпїЅпїЅпїЅпїЅ";
+        return "пїЅпїЅ пїЅпїЅпїЅпїЅпїЅ";
     }
 
     cv::Point2f findIntersection(cv::Point p1, cv::Point p2, cv::Point p3, cv::Point p4) {
@@ -169,7 +169,7 @@ namespace Lab04 {
                     cv::Point edgeStart = polygons.back()[0];
                     cv::Point edgeEnd = polygons.back()[1 % polygons.back().size()];
                     std::string position = classifyPointRelativeToEdge(mousePoint, edgeStart, edgeEnd);
-                    printf("Точка (%d, %d) находится %s относительно ребра ((%d, %d) - (%d, %d)).\n",
+                    printf("пїЅпїЅпїЅпїЅпїЅ (%d, %d) пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ %s пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ ((%d, %d) - (%d, %d)).\n",
                         mousePoint.x, mousePoint.y, position.c_str(), edgeStart.x, edgeStart.y, edgeEnd.x, edgeEnd.y);
                 }
             }
@@ -187,13 +187,13 @@ namespace Lab04 {
                             cv::Point2f intersection = findIntersection(pA, pB, pC, pD);
                             if (intersection.x != -1) {
                                 intersectionPoints.push_back(intersection);
-                                printf("Точка пересечения: (%.0f, %.0f)\n", intersection.x, intersection.y);
+                                printf("пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ: (%.0f, %.0f)\n", intersection.x, intersection.y);
                                 foundIntersection = true;
                             }
                         }
                     }
                     if (!foundIntersection) {
-                        printf("Пересечений не найдено.\n");
+                        printf("пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ.\n");
                     }
                     intersectionEdgePoints.clear();
                     isDrawingIntersectionEdge = false;
@@ -206,10 +206,10 @@ namespace Lab04 {
                 if (!polygons.empty()) {
                     bool inPoly = isPointInPolygon(mousePoint, polygons.back());
                     if (inPoly) {
-                        printf("Точка (%d, %d) находится внутри полигона.\n", mousePoint.x, mousePoint.y);
+                        printf("пїЅпїЅпїЅпїЅпїЅ (%d, %d) пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ.\n", mousePoint.x, mousePoint.y);
                     }
                     else {
-                        printf("Точка (%d, %d) не принадлежит полигону.\n", mousePoint.x, mousePoint.y);
+                        printf("пїЅпїЅпїЅпїЅпїЅ (%d, %d) пїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ.\n", mousePoint.x, mousePoint.y);
                     }
                 }
             }
@@ -352,11 +352,11 @@ namespace Lab04 {
                 else if (currentSearch == 1) {
                     isDrawingIntersectionEdge = true;
                     intersectionPoints.clear();
-                    printf("Режим: Поиск пересечения. Кликните дважды на холсте, чтобы задать ребро.\n");
+                    printf("пїЅпїЅпїЅпїЅпїЅ: пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ. пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ, пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ.\n");
                 }
                 else if (currentSearch == 2) {
                     isCheckingPointInPolygon = true;
-                    printf("Режим: Принадлежность точки полигону. Кликните на холсте, чтобы выбрать точку.\n");
+                    printf("пїЅпїЅпїЅпїЅпїЅ: пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ. пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ, пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ.\n");
                 }
                 ImGui::CloseCurrentPopup();
             }

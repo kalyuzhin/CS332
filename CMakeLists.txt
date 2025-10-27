@@ -6,6 +6,7 @@ set(CMAKE_CXX_STANDARD 20)
 set(SOURCES
     main.cpp
     provider.h
+        lab06/lab.h
 )
 
 file(GLOB_RECURSE LAB04_FILES "Lab04/*.cpp" "Lab04/*.h")

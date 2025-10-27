@@ -1,9 +1,7 @@
-#include "provider.h"
-#include "lab05/App.h"
-#include "Lab05/Task3.h"
+#include "lab06/lab.h"
 
 int main() {
-	auto app = Task3::App();
-	app.run();
+    run_lab6();
+
 	return 0;
 }
