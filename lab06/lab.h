@@ -7,7 +7,9 @@
 
 #define GL_SILENCE_DEPRECATION
 
-#include "../provider.h"
+#include "provider.h"
+
+static constexpr float M_PI = 3.14159265358979323846f;
 
 struct Vec3 {
     float x{}, y{}, z{};
@@ -316,7 +318,8 @@ struct PerspectiveParams {
     float d = 400.0f;
 };
 struct AxonometricParams {
-    float ax_deg = 35.264f;
+    //float ax_deg = 35.264f;
+    float ax_deg = 45.0f;
     float ay_deg = 45.0f;
 };
 
@@ -555,7 +558,7 @@ int run_lab6() {
         }
         ImGui::End();
 
-        ImGui::Begin("Viewport");
+        ImGui::Begin("Viewport", nullptr, ImGuiWindowFlags_NoMove);
         ImVec2 p0 = ImGui::GetCursorScreenPos();
         ImVec2 avail = ImGui::GetContentRegionAvail();
         if (avail.x < 100) avail.x = 100;
