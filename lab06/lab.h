@@ -9,42 +9,73 @@
 
 #include "../provider.h"
 
+#ifdef __APPLE__
+#define IMGUI_IMPL_OPENGL_LOADER_OSX
+#endif
+
+using std::vector;
+
+static constexpr float PI = 3.14159265358979323846f;
+
+inline float deg2rad(float a) { return a * PI / 180.0f; }
+
+// ========================= Линал =========================
 struct Vec3 {
     float x{}, y{}, z{};
 };
 struct Vec4 {
-    float x{}, y{}, z{}, w{1};
+    float x{}, y{}, z{}, w{};
 };
 
+inline Vec3 operator+(const Vec3 &a, const Vec3 &b) { return {a.x + b.x, a.y + b.y, a.z + b.z}; }
+
+inline Vec3 operator-(const Vec3 &a, const Vec3 &b) { return {a.x - b.x, a.y - b.y, a.z - b.z}; }
+
+inline Vec3 operator*(const Vec3 &a, float s) { return {a.x * s, a.y * s, a.z * s}; }
+
+inline float dot(const Vec3 &a, const Vec3 &b) { return a.x * b.x + a.y * b.y + a.z * b.z; }
+
+inline Vec3 cross(const Vec3 &a, const Vec3 &b) {
+    return {a.y * b.z - a.z * b.y, a.z * b.x - a.x * b.z, a.x * b.y - a.y * b.x};
+}
+
+inline float vlen(const Vec3 &v) { return std::sqrt(dot(v, v)); }
+
+inline Vec3 norm(const Vec3 &v) {
+    float L = vlen(v);
+    return (L == 0) ? Vec3{0, 0, 0} : Vec3{v.x / L, v.y / L, v.z / L};
+}
+
 struct Mat4 {
+    // row-vector convention: p' = p * M
     float m[4][4]{};
 
-    static Mat4 identity() {
-        Mat4 I{};
-        for (int i = 0; i < 4; ++i) I.m[i][i] = 1.0f;
-        return I;
+    static Mat4 I() {
+        Mat4 M{};
+        for (int i = 0; i < 4; ++i) M.m[i][i] = 1.f;
+        return M;
     }
 
-    static Mat4 translation(float a, float b, float c) {
-        Mat4 T = identity();
-        T.m[3][0] = a;
-        T.m[3][1] = b;
-        T.m[3][2] = c;
-        return T;
+    static Mat4 T(float a, float b, float c) {
+        Mat4 M = I();
+        M.m[3][0] = a;
+        M.m[3][1] = b;
+        M.m[3][2] = c;
+        return M;
     }
 
-    static Mat4 scaling(float sx, float sy, float sz) {
-        Mat4 S{};
-        S.m[0][0] = sx;
-        S.m[1][1] = sy;
-        S.m[2][2] = sz;
-        S.m[3][3] = 1.0f;
-        return S;
+    static Mat4 S(float sx, float sy, float sz) {
+        Mat4 M{};
+        M.m[0][0] = sx;
+        M.m[1][1] = sy;
+        M.m[2][2] = sz;
+        M.m[3][3] = 1.f;
+        return M;
     }
 
-    static Mat4 rotX(float deg) {
-        float r = deg * float(M_PI) / 180.0f, c = std::cos(r), s = std::sin(r);
-        Mat4 R = identity();
+    static Mat4 Rx(float deg) {
+        float c = std::cos(deg2rad(deg)), s = std::sin(deg2rad(deg));
+        Mat4 R = I();
         R.m[1][1] = c;
         R.m[1][2] = s;
         R.m[2][1] = -s;
@@ -52,9 +83,9 @@ struct Mat4 {
         return R;
     }
 
-    static Mat4 rotY(float deg) {
-        float r = deg * float(M_PI) / 180.0f, c = std::cos(r), s = std::sin(r);
-        Mat4 R = identity();
+    static Mat4 Ry(float deg) {
+        float c = std::cos(deg2rad(deg)), s = std::sin(deg2rad(deg));
+        Mat4 R = I();
         R.m[0][0] = c;
         R.m[0][2] = -s;
         R.m[2][0] = s;
@@ -62,9 +93,9 @@ struct Mat4 {
         return R;
     }
 
-    static Mat4 rotZ(float deg) {
-        float r = deg * float(M_PI) / 180.0f, c = std::cos(r), s = std::sin(r);
-        Mat4 R = identity();
+    static Mat4 Rz(float deg) {
+        float c = std::cos(deg2rad(deg)), s = std::sin(deg2rad(deg));
+        Mat4 R = I();
         R.m[0][0] = c;
         R.m[0][1] = s;
         R.m[1][0] = -s;
@@ -72,58 +103,53 @@ struct Mat4 {
         return R;
     }
 
-    static Mat4 reflectXY() {
-        Mat4 R = identity();
-        R.m[2][2] = -1;
+    static Mat4 Raxis(const Vec3 &u, float deg) { // u — единичный
+        float a = deg2rad(deg), c = std::cos(a), s = std::sin(a), t = 1.f - c;
+        float l = u.x, m = u.y, n = u.z;
+        Mat4 R = I();
+        R.m[0][0] = t * l * l + c;
+        R.m[0][1] = t * l * m + s * n;
+        R.m[0][2] = t * l * n - s * m;
+        R.m[1][0] = t * m * l - s * n;
+        R.m[1][1] = t * m * m + c;
+        R.m[1][2] = t * m * n + s * l;
+        R.m[2][0] = t * n * l + s * m;
+        R.m[2][1] = t * n * m - s * l;
+        R.m[2][2] = t * n * n + c;
         return R;
     }
 
-    static Mat4 reflectYZ() {
-        Mat4 R = identity();
-        R.m[0][0] = -1;
-        return R;
+    static Mat4 RefXY() {
+        Mat4 M = I();
+        M.m[2][2] = -1.f;
+        return M;
     }
 
-    static Mat4 reflectXZ() {
-        Mat4 R = identity();
-        R.m[1][1] = -1;
-        return R;
+    static Mat4 RefYZ() {
+        Mat4 M = I();
+        M.m[0][0] = -1.f;
+        return M;
     }
 
-    static Mat4 axisAngle(float l, float m, float n, float deg) {
-        float r = deg * float(M_PI) / 180.0f, c = std::cos(r), s = std::sin(r);
-        Mat4 R = identity();
-        R.m[0][0] = l * l + c * (1 - l * l);
-        R.m[0][1] = l * (1 - c) * m + n * s;
-        R.m[0][2] = l * (1 - c) * n - m * s;
-        R.m[1][0] = l * (1 - c) * m - n * s;
-        R.m[1][1] = m * m + c * (1 - m * m);
-        R.m[1][2] = m * (1 - c) * n + l * s;
-        R.m[2][0] = l * (1 - c) * n + m * s;
-        R.m[2][1] = m * (1 - c) * n - l * s;
-        R.m[2][2] = n * n + c * (1 - n * n);
-        return R;
-    }
-
-    static Mat4 rotateAroundLine(const Vec3 &A, float l, float m, float n, float deg) {
-        return translation(-A.x, -A.y, -A.z) * axisAngle(l, m, n, deg) * translation(A.x, A.y, A.z);
-    }
-
-    Mat4 operator*(const Mat4 &B) const {
-        Mat4 C{};
-        for (int i = 0; i < 4; ++i)
-            for (int j = 0; j < 4; ++j)
-                for (int k = 0; k < 4; ++k)
-                    C.m[i][j] += m[i][k] * B.m[k][j];
-        return C;
+    static Mat4 RefXZ() {
+        Mat4 M = I();
+        M.m[1][1] = -1.f;
+        return M;
     }
 };
 
-static inline Vec4 toVec4(const Vec3 &v) { return {v.x, v.y, v.z, 1.0f}; }
+inline Mat4 operator*(const Mat4 &A, const Mat4 &B) {
+    Mat4 C{};
+    for (int r = 0; r < 4; ++r)
+        for (int c = 0; c < 4; ++c) {
+            float s = 0.f;
+            for (int k = 0; k < 4; ++k) s += A.m[r][k] * B.m[k][c];
+            C.m[r][c] = s;
+        }
+    return C;
+}
 
-static inline Vec3 toVec3(const Vec4 &v) { return {v.x, v.y, v.z}; }
-
-static inline Vec4 mul(const Vec4 &v, const Mat4 &M) {
+inline Vec4 operator*(const Vec4 &v, const Mat4 &M) {
     Vec4 r{};
     r.x = v.x * M.m[0][0] + v.y * M.m[1][0] + v.z * M.m[2][0] + v.w * M.m[3][0];
     r.y = v.x * M.m[0][1] + v.y * M.m[1][1] + v.z * M.m[2][1] + v.w * M.m[3][1];
@@ -132,445 +158,629 @@ static inline Vec4 mul(const Vec4 &v, const Mat4 &M) {
     return r;
 }
 
+inline Vec3 xform(const Vec3 &p, const Mat4 &M) {
+    Vec4 v{p.x, p.y, p.z, 1.f};
+    Vec4 r = v * M;
+    if (std::abs(r.w) < 1e-6f) return {r.x, r.y, r.z};
+    return {r.x / r.w, r.y / r.w, r.z / r.w};
+}
+
+// ========================= Геометрия =========================
+struct Vertex {
+    float x{}, y{}, z{};
+};
 struct Face {
-    std::vector<int> idx;
+    vector<int> idx;
+};
+struct Mesh {
+    vector<Vertex> V;
+    vector<Face> F;
 };
 
-struct Polyhedron {
-    std::vector<Vec3> V;
-    std::vector<Face> F;
-
-    Vec3 faceCenter(const Face &f) const {
-        float x = 0, y = 0, z = 0;
-        for (int i: f.idx) {
-            x += V[i].x;
-            y += V[i].y;
-            z += V[i].z;
-        }
-        float n = float(f.idx.size());
-        return {x / n, y / n, z / n};
+Vec3 centroid(const Mesh &m) {
+    Vec3 c{0, 0, 0};
+    if (m.V.empty()) return c;
+    for (auto &p: m.V) {
+        c.x += p.x;
+        c.y += p.y;
+        c.z += p.z;
     }
-
-    Vec3 centroidObject() const {
-        float x = 0, y = 0, z = 0;
-        for (auto &p: V) {
-            x += p.x;
-            y += p.y;
-            z += p.z;
-        }
-        float n = float(V.size());
-        return {x / n, y / n, z / n};
-    }
-
-    static Polyhedron Cube() {
-        Polyhedron p;
-        p.V = {{-1, -1, -1},
-               {+1, -1, -1},
-               {+1, +1, -1},
-               {-1, +1, -1},
-               {-1, -1, +1},
-               {+1, -1, +1},
-               {+1, +1, +1},
-               {-1, +1, +1}};
-        p.F = {{{0, 1, 2, 3}},
-               {{4, 5, 6, 7}},
-               {{0, 1, 5, 4}},
-               {{3, 2, 6, 7}},
-               {{1, 2, 6, 5}},
-               {{0, 3, 7, 4}}};
-        return p;
-    }
-
-    static Polyhedron Tetrahedron() {
-        Polyhedron t;
-        t.V = {{-1, +1, -1},
-               {+1, -1, -1},
-               {+1, +1, +1},
-               {-1, -1, +1}};
-        t.F = {{{0, 1, 2}},
-               {{0, 1, 3}},
-               {{0, 2, 3}},
-               {{1, 2, 3}}};
-        return t;
-    }
-
-    static Polyhedron Octahedron() {
-        Polyhedron o;
-        o.V = {{+1, 0, 0},
-               {-1, 0, 0},
-               {0,  +1, 0},
-               {0,  -1, 0},
-               {0,  0, +1},
-               {0,  0, -1}};
-        o.F = {{{0, 2, 4}},
-               {{2, 1, 4}},
-               {{1, 3, 4}},
-               {{3, 0, 4}},
-               {{0, 2, 5}},
-               {{2, 1, 5}},
-               {{1, 3, 5}},
-               {{3, 0, 5}}};
-        return o;
-    }
-
-    static Polyhedron Icosahedron() {
-        Polyhedron ico;
-        std::vector<std::pair<Vec3, int>> bottom, top;
-        bottom.reserve(5);
-        top.reserve(5);
-        double ang = -90.0;
-        int num = 1;
-        for (int i = 0; i < 5; ++i) {
-            double rad = ang * M_PI / 180.0;
-            bottom.push_back({{float(std::cos(rad)), -0.5f, float(std::sin(rad))}, num});
-            ang += 72;
-            num += 2;
-        }
-        ang = -54.0;
-        num = 2;
-        for (int i = 0; i < 5; ++i) {
-            double rad = ang * M_PI / 180.0;
-            top.push_back({{float(std::cos(rad)), +0.5f, float(std::sin(rad))}, num});
-            ang += 72;
-            num += 2;
-        }
-        auto all = bottom;
-        all.insert(all.end(), top.begin(), top.end());
-        std::sort(all.begin(), all.end(), [](auto &a, auto &b) { return a.second < b.second; });
-        ico.V.reserve(12);
-        for (auto &pr: all) ico.V.push_back(pr.first);
-        for (int i = 1; i <= 8; ++i) ico.F.push_back(Face{{i - 1, i, i + 1}});
-        ico.F.push_back(Face{{8, 9, 0}});
-        ico.F.push_back(Face{{9, 0, 1}});
-        ico.V.push_back({0, -float(std::sqrt(5.0)) / 2.0f, 0}); // 10
-        ico.V.push_back({0, +float(std::sqrt(5.0)) / 2.0f, 0}); // 11
-        int k = 1;
-        for (int i = 0; i < 4; ++i) {
-            ico.F.push_back(Face{{10, k - 1, k + 1}});
-            k += 2;
-        }
-        ico.F.push_back(Face{{10, 8, 0}});
-        k = 2;
-        for (int i = 0; i < 4; ++i) {
-            ico.F.push_back(Face{{11, k - 1, k + 1}});
-            k += 2;
-        }
-        ico.F.push_back(Face{{11, 9, 1}});
-        return ico;
-    }
-
-    static Polyhedron Dodecahedron() {
-        Polyhedron ico = Icosahedron();
-        Polyhedron dod;
-        dod.V.reserve(ico.F.size());
-        for (auto &f: ico.F) dod.V.push_back(ico.faceCenter(f));
-        for (int i = 0; i < 12; ++i) {
-            std::vector<std::pair<float, int>> d;
-            d.reserve(dod.V.size());
-            for (int j = 0; j < (int) dod.V.size(); ++j) {
-                auto &vv = dod.V[j];
-                float dx = vv.x - ico.V[i].x, dy = vv.y - ico.V[i].y, dz = vv.z - ico.V[i].z;
-                d.push_back({dx * dx + dy * dy + dz * dz, j});
-            }
-            std::sort(d.begin(), d.end(), [](auto &a, auto &b) { return a.first < b.first; });
-            std::array<int, 5> five{};
-            for (int t = 0; t < 5; ++t) five[t] = d[t].second;
-            int first = five[0], next = five[1];
-            std::vector<int> rest = {five[2], five[3], five[4]};
-            auto d2 = [&](const Vec3 &A, const Vec3 &B) {
-                float dx = A.x - B.x, dy = A.y - B.y, dz = A.z - B.z;
-                return dx * dx + dy * dy + dz * dz;
-            };
-            std::sort(rest.begin(), rest.end(),
-                      [&](int a, int b) { return d2(dod.V[a], dod.V[next]) < d2(dod.V[b], dod.V[next]); });
-            Face face;
-            face.idx = {first, next, rest[0], rest[1], rest[2]};
-            dod.F.push_back(face);
-        }
-        return dod;
-    }
-};
-
-static inline Vec3 operator+(const Vec3 &a, const Vec3 &b) { return {a.x + b.x, a.y + b.y, a.z + b.z}; }
-
-static inline Vec3 operator-(const Vec3 &a, const Vec3 &b) { return {a.x - b.x, a.y - b.y, a.z - b.z}; }
-
-static inline Vec3 operator*(const Vec3 &a, float s) { return {a.x * s, a.y * s, a.z * s}; }
-
-static inline Vec3 normalized(const Vec3 &v) {
-    float L = std::sqrt(v.x * v.x + v.y * v.y + v.z * v.z);
-    if (L == 0) return {0, 0, 1};
-    return {v.x / L, v.y / L, v.z / L};
+    float inv = 1.f / static_cast<float>(m.V.size());
+    return {c.x * inv, c.y * inv, c.z * inv};
 }
 
-static inline Vec3 apply(const Vec3 &p, const Mat4 &M) { return toVec3(mul(toVec4(p), M)); }
-
-enum class Solid {
-    Cube, Tetra, Octa, Icosa, Dodeca
-};
-enum class Projection {
-    Perspective, Axonometric
-};
-
-struct PerspectiveParams {
-    float d = 400.0f;
-};
-struct AxonometricParams {
-    float ax_deg = 35.264f;
-    float ay_deg = 45.0f;
-};
-
-static inline ImVec2 projectPerspective(const Vec3 &v, const ImVec2 &center, const PerspectiveParams &P) {
-    Vec4 row{v.x - center.x, v.y - center.y, v.z, 1.0f};
-    Mat4 M = Mat4::identity();
-    M.m[2][2] = 0.0f;
-    M.m[2][3] = 1.0f / P.d;
-    Vec4 out = mul(row, M);
-    float w = (out.w != 0.0f) ? out.w : 1.0f;
-    return {out.x / w + center.x, out.y / w + center.y};
+// Platonic solids
+Mesh makeCube(float s = 1.f) {
+    Mesh P;
+    float a = s;
+    P.V = {{-a, -a, -a},
+           {a,  -a, -a},
+           {a,  a,  -a},
+           {-a, a,  -a},
+           {-a, -a, a},
+           {a,  -a, a},
+           {a,  a,  a},
+           {-a, a,  a}};
+    P.F = {{{0, 1, 2, 3}},
+           {{4, 5, 6, 7}},
+           {{0, 1, 5, 4}},
+           {{3, 2, 6, 7}},
+           {{1, 2, 6, 5}},
+           {{0, 3, 7, 4}}};
+    return P;
 }
 
-static inline ImVec2 projectAxonometric(const Vec3 &v, const ImVec2 &center, const AxonometricParams &A) {
-    float ax = A.ax_deg * float(M_PI) / 180.0f, ay = A.ay_deg * float(M_PI) / 180.0f;
-    float cosX = std::cos(ax), sinX = std::sin(ax), cosY = std::cos(ay), sinY = std::sin(ay);
-    Mat4 M{};
-    M.m[0][0] = cosY;
-    M.m[0][1] = sinX * sinY;
-    M.m[1][1] = cosX;
-    M.m[2][0] = sinY;
-    M.m[2][1] = -sinX * cosY;
-    M.m[3][3] = 1.0f;
-    Vec4 out = mul(toVec4(v - Vec3{center.x, center.y, 0}), M);
-    return {out.x + center.x, out.y + center.y};
+Mesh makeTetra(float s = 1.f) {
+    Mesh P;
+    float a = s;
+    P.V = {{-a, a,  -a},
+           {a,  -a, -a},
+           {a,  a,  a},
+           {-a, -a, a}};
+    P.F = {{{0, 1, 2}},
+           {{0, 1, 3}},
+           {{0, 2, 3}},
+           {{1, 2, 3}}};
+    return P;
 }
 
-static Vec3 worldCentroid(const Polyhedron &P, const Mat4 &M) {
-    float x = 0, y = 0, z = 0;
-    for (auto &v: P.V) {
-        auto w = apply(v, M);
-        x += w.x;
-        y += w.y;
-        z += w.z;
+Mesh makeOcta(float s = 1.f) {
+    Mesh P;
+    float a = s;
+    P.V = {{0,  0,  a},
+           {0,  0,  -a},
+           {0,  a,  0},
+           {0,  -a, 0},
+           {a,  0,  0},
+           {-a, 0,  0}};
+    P.F = {{{0, 2, 4}},
+           {{0, 4, 3}},
+           {{0, 3, 5}},
+           {{0, 5, 2}},
+           {{1, 4, 2}},
+           {{1, 3, 4}},
+           {{1, 5, 3}},
+           {{1, 2, 5}}};
+    return P;
+}
+
+Mesh makeIcosa(float s = 1.f) {
+    // Стандартные координаты: (0, ±1, ±φ), (±1, ±φ, 0), (±φ, 0, ±1)
+    const float phi = (1.f + std::sqrt(5.f)) * 0.5f;
+    vector<Vec3> W = {
+            {0,    -1,   -phi},
+            {0,    -1,   +phi},
+            {0,    +1,   -phi},
+            {0,    +1,   +phi},
+            {-1,   -phi, 0},
+            {-1,   +phi, 0},
+            {+1,   -phi, 0},
+            {+1,   +phi, 0},
+            {-phi, 0,    -1},
+            {+phi, 0,    -1},
+            {-phi, 0,    +1},
+            {+phi, 0,    +1}
+    };
+    // Нормируем к радиусу s (окруж. сфера)
+    float maxr = 0.f;
+    for (auto &p: W) maxr = std::max(maxr, vlen(p));
+    float k = s / maxr;
+    Mesh P;
+    for (auto &p: W) P.V.push_back({p.x * k, p.y * k, p.z * k});
+    // 20 треугольников (согласованы с этим порядком вершин)
+    P.F = {
+            {{0, 8,  2}},
+            {{0, 2,  9}},
+            {{0, 9,  6}},
+            {{0, 6,  1}},
+            {{0, 1,  8}},
+            {{1, 6,  11}},
+            {{1, 11, 10}},
+            {{1, 10, 8}},
+            {{2, 8,  5}},
+            {{2, 5,  7}},
+            {{2, 7,  9}},
+            {{3, 5,  8}},
+            {{3, 11, 5}},
+            {{3, 10, 11}},
+            {{3, 4,  10}},
+            {{3, 8,  4}},
+            {{4, 8,  10}},
+            {{5, 11, 7}},
+            {{6, 9,  11}},
+            {{7, 11, 9}}
+    };
+    return P;
+}
+
+// Додекаэдр как дуал к икосаэдру: вершины — центры треугольных граней (нормализованные),
+// грани — по 5 центров граней, инцидентных каждой вершине икосаэдра, в циклическом порядке.
+Mesh makeDodeca(float s = 1.f) {
+    Mesh ico = makeIcosa(1.f);
+
+    // центры граней (будут вершинами додека)
+    vector<Vec3> centers;
+    centers.reserve(ico.F.size());
+    for (auto &f: ico.F) {
+        Vec3 c{0, 0, 0};
+        for (int i: f.idx) { c = c + Vec3{ico.V[i].x, ico.V[i].y, ico.V[i].z}; }
+        float inv = 1.f / f.idx.size();
+        c = c * inv;
+        // нормируем к единичной сфере
+        c = norm(c);
+        centers.push_back(c);
     }
-    float n = float(P.V.size());
-    return {x / n, y / n, z / n};
+    // масштаб к радиусу s
+    for (auto &c: centers) { c = c * s; }
+
+    // соответствие: индекс новой вершины = индекс исходной грани
+    Mesh dode;
+    for (auto &c: centers) dode.V.push_back({c.x, c.y, c.z});
+
+    // для каждого ВЕРШИНЫ икосаэдра собираем все ГРАНИ, которые её содержат (их 5),
+    // сортируем циклически вокруг направления этой вершины, формируем пятиугольную грань
+    std::vector<std::vector<int>> incidentFaces(ico.V.size());
+    for (int fi = 0; fi < (int) ico.F.size(); ++fi) {
+        for (int vi: ico.F[fi].idx) {
+            incidentFaces[vi].push_back(fi);
+        }
+    }
+    for (int vi = 0; vi < (int) ico.V.size(); ++vi) {
+        auto &faces = incidentFaces[vi]; // 5 штук
+        if ((int) faces.size() != 5) continue;
+
+        // базис в касательной плоскости возле вершины vi
+        Vec3 Nv = norm({ico.V[vi].x, ico.V[vi].y, ico.V[vi].z}); // нормаль наружу
+        Vec3 tmp = (std::fabs(Nv.z) < 0.9f) ? Vec3{0, 0, 1} : Vec3{0, 1, 0};
+        Vec3 e1 = norm(cross(tmp, Nv)); // касательный
+        Vec3 e2 = cross(Nv, e1);
+
+        struct Item {
+            int fidx;
+            float ang;
+        };
+        std::vector<Item> items;
+        items.reserve(5);
+
+        // угол от e1/e2
+        for (int fidx: faces) {
+            Vec3 C = centers[fidx]; // уже на сфере
+            Vec3 v = C - Nv * dot(C, Nv); // проекция в касательной плоскости
+            float x = dot(v, e1), y = dot(v, e2);
+            float ang = std::atan2(y, x);
+            items.push_back({fidx, ang});
+        }
+        std::sort(items.begin(), items.end(), [](const Item &a, const Item &b) { return a.ang < b.ang; });
+
+        Face pent;
+        for (auto &it: items) pent.idx.push_back(it.fidx);
+        dode.F.push_back(std::move(pent));
+    }
+    return dode;
 }
 
-static Polyhedron makeSolid(Solid s) {
-    switch (s) {
-        case Solid::Cube:
-            return Polyhedron::Cube();
-        case Solid::Tetra:
-            return Polyhedron::Tetrahedron();
-        case Solid::Octa:
-            return Polyhedron::Octahedron();
-        case Solid::Icosa:
-            return Polyhedron::Icosahedron();
-        case Solid::Dodeca:
-            return Polyhedron::Dodecahedron();
+// ========================= Проекции =========================
+struct Projector {
+    bool perspective = true;   // true — перспектива, false — аксонометрия
+    float f = 600.f;           // фокусное расстояние (для перспективы)
+    float ax = 35.264f;        // аксонометрия: поворот X
+    float ay = 45.f;           // аксонометрия: поворот Y
+    float scale = 160.f;
+    float cx = 600.f, cy = 400.f; // центр экрана
+
+    // аксонометрическая ориентация (ортографическая проекция после поворотов)
+    Vec3 axo(const Vec3 &p) const {
+        Vec3 r = xform(p, Mat4::Rx(ax) * Mat4::Ry(ay));
+        return r;
     }
-    return Polyhedron::Cube();
-}
+
+    // Проецирование мировой точки p -> экранные int координаты
+    bool project(const Vec3 &pw, int &X, int &Y) const {
+        if (perspective) {
+            // Камера в (0,0,-f), плоскость z=0. Эквивалент: x' = f*x/(f+z).
+            float denom = f + pw.z;
+            if (denom <= 1e-3f) return false; // за "камерой" — отбрасываем
+            float x = (pw.x * f / denom) * (scale / f) + cx; // scale ~ пикс/ед. на плоскости
+            float y = (pw.y * f / denom) * (scale / f) + cy;
+            X = (int) std::lround(x);
+            Y = (int) std::lround(y);
+            return true;
+        } else {
+            Vec3 q = axo(pw);
+            float x = q.x * scale + cx, y = q.y * scale + cy;
+            X = (int) std::lround(x);
+            Y = (int) std::lround(y);
+            return true;
+        }
+    }
+};
+
+// ========================= Приложение =========================
+enum class PolyKind {
+    Tetra = 0, Cube, Octa, Ico, Dode
+};
 
 struct AppState {
-    Polyhedron base = Polyhedron::Cube();
-    Mat4 model = Mat4::identity();
-    Solid current = Solid::Cube;
-    Projection proj = Projection::Perspective;
-    PerspectiveParams persp{};
-    AxonometricParams axono{};
-    float move[3]{0, 0, 0};
-    float scale[3]{1, 1, 1};
-    float rotXYZ[3]{0, 0, 0};
-    float axisAngleDeg = 0.0f;
-    int axisIndex = 0;
-    float L_P0[3]{0, 0, 0};
-    float L_P1[3]{0, 100, 0};
-    float L_angle = 0.0f;
-    int reflectIndex = 0;
+    PolyKind kind = PolyKind::Cube;
+    Mesh base = makeCube(1.f);   // локальная геометрия
+    Mat4 modelMat = Mat4::I();   // локальные -> мировые
+    Projector proj;
+
+    // произвольная линия в мировых координатах
+    Vec3 P0{-200, 0, 0}, P1{200, 0, 0};
+
+    // текущая ось для вращения вокруг центра (мировые оси)
+    char axisSel = 'X';
 };
 
-static void resetPlacement(AppState &S, const ImVec2 &center) {
-    S.model = Mat4::identity();
-    S.model = S.model * Mat4::rotX(10.0f) * Mat4::rotY(10.0f);
-    S.model = S.model * Mat4::scaling(120, 120, 120);
-    S.model = S.model * Mat4::translation(center.x, center.y, 0);
+// Мировое центр-объекта (из локального центра)
+Vec3 worldCenter(const Mesh &base, const Mat4 &M) {
+    Vec3 cL = centroid(base);
+    return xform(cL, M);
 }
 
-static void drawPolyhedronWire(const Polyhedron &P, const Mat4 &model, const ImVec2 &origin, const ImVec2 &size,
-                               Projection proj, const PerspectiveParams &persp, const AxonometricParams &ax) {
-    ImDrawList *dl = ImGui::GetWindowDrawList();
-    ImVec2 center{origin.x + size.x * 0.5f, origin.y + size.y * 0.5f};
-    std::vector<Vec3> W;
-    W.reserve(P.V.size());
-    for (auto &v: P.V) W.push_back(apply(v, model));
-    auto project = [&](const Vec3 &w) {
-        return (proj == Projection::Perspective) ? projectPerspective(w, center, persp)
-                                                 : projectAxonometric(w, center, ax);
-    };
-    for (auto &f: P.F) {
-        std::vector<ImVec2> poly2d;
-        poly2d.reserve(f.idx.size() + 1);
-        for (int id: f.idx) poly2d.push_back(project(W[id]));
-        poly2d.push_back(poly2d.front());
-        dl->AddPolyline(poly2d.data(), (int) poly2d.size(), IM_COL32(0, 0, 0, 255), false, 2.0f);
+// Применение трансформаций К МОДЕЛИ
+// ВАЖНО: для мировой операции нужно ПРЕ-домножение: M := T * M (row-vector, world space first)
+void worldTranslate(AppState &S, float dx, float dy, float dz) {
+    S.modelMat = Mat4::T(dx, dy, dz) * S.modelMat;
+}
+
+void worldScaleAround(AppState &S, const Vec3 &Cw, float sx, float sy, float sz) {
+    S.modelMat = Mat4::T(-Cw.x, -Cw.y, -Cw.z) * Mat4::S(sx, sy, sz) * Mat4::T(Cw.x, Cw.y, Cw.z) * S.modelMat;
+}
+
+void worldRotateAroundAxisThrough(AppState &S, const Vec3 &Cw, const Vec3 &axisUnit, float deg) {
+    S.modelMat = Mat4::T(-Cw.x, -Cw.y, -Cw.z) * Mat4::Raxis(axisUnit, deg) * Mat4::T(Cw.x, Cw.y, Cw.z) * S.modelMat;
+}
+
+void worldReflectPlane(AppState &S, const Mat4 &R) {
+    S.modelMat = R * S.modelMat;
+}
+
+void worldRotateAroundLine(AppState &S, const Vec3 &P0w, const Vec3 &P1w, float deg) {
+    Vec3 axis = norm(P1w - P0w);
+    S.modelMat = Mat4::T(-P0w.x, -P0w.y, -P0w.z) * Mat4::Raxis(axis, deg) * Mat4::T(P0w.x, P0w.y, P0w.z) * S.modelMat;
+}
+
+// Рисование осей мировых координат
+static void drawAxes(const Projector &proj, float len = 250.f) {
+    ImDrawList *dl = ImGui::GetBackgroundDrawList();
+    Vec3 O{0, 0, 0};
+    Vec3 X{len, 0, 0}, Y{0, len, 0}, Z{0, 0, len};
+    int ox, oy, xx, xy, yx, yy, zx, zy;
+    if (proj.project(O, ox, oy) && proj.project(X, xx, xy))
+        dl->AddLine(ImVec2(ox, oy), ImVec2(xx, xy), IM_COL32(255, 0, 0, 255), 2.0f);
+    if (proj.project(O, ox, oy) && proj.project(Y, yx, yy))
+        dl->AddLine(ImVec2(ox, oy), ImVec2(yx, yy), IM_COL32(0, 200, 0, 255), 2.0f);
+    if (proj.project(O, ox, oy) && proj.project(Z, zx, zy))
+        dl->AddLine(ImVec2(ox, oy), ImVec2(zx, zy), IM_COL32(0, 128, 255, 255), 2.0f);
+
+    // подписи
+    ImGui::GetForegroundDrawList()->AddText(ImVec2((float) xx, (float) xy), IM_COL32(255, 0, 0, 255), "X");
+    ImGui::GetForegroundDrawList()->AddText(ImVec2((float) yx, (float) yy), IM_COL32(0, 200, 0, 255), "Y");
+    ImGui::GetForegroundDrawList()->AddText(ImVec2((float) zx, (float) zy), IM_COL32(0, 128, 255, 255), "Z");
+}
+
+// Wireframe через ImGui
+static void drawWireImGui(const Mesh &base, const Mat4 &model, const Projector &proj,
+                          ImU32 color = IM_COL32(0, 0, 0, 255), float thick = 1.6f) {
+    ImDrawList *dl = ImGui::GetBackgroundDrawList();
+    // Проецируем рёбра граней
+    for (const auto &f: base.F) {
+        for (size_t i = 0; i < f.idx.size(); ++i) {
+            int i0 = f.idx[i], i1 = f.idx[(i + 1) % f.idx.size()];
+            Vec3 aL{base.V[i0].x, base.V[i0].y, base.V[i0].z};
+            Vec3 bL{base.V[i1].x, base.V[i1].y, base.V[i1].z};
+            Vec3 aW = xform(aL, model);
+            Vec3 bW = xform(bL, model);
+
+            int x0, y0, x1, y1;
+            if (proj.project(aW, x0, y0) && proj.project(bW, x1, y1))
+                dl->AddLine(ImVec2((float) x0, (float) y0), ImVec2((float) x1, (float) y1), color, thick);
+        }
     }
 }
 
-int run_lab6() {
-    if (!glfwInit()) return 1;
-    glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
-    glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
-    glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
+// Горячие клавиши
+static void applyKeyOps(GLFWwindow *win, AppState &S) {
+    auto pressed = [&](int key) { return glfwGetKey(win, key) == GLFW_PRESS; };
+
+    float moveStep = 20.f, rotStep = 5.f, scaleMul = 1.05f, lineRotStep = 5.f;
+
+    // выбор тела
+    if (pressed(GLFW_KEY_1)) {
+        S.kind = PolyKind::Tetra;
+        S.base = makeTetra(150.f);
+        S.modelMat = Mat4::I();
+    }
+    if (pressed(GLFW_KEY_2)) {
+        S.kind = PolyKind::Cube;
+        S.base = makeCube(150.f);
+        S.modelMat = Mat4::I();
+    }
+    if (pressed(GLFW_KEY_3)) {
+        S.kind = PolyKind::Octa;
+        S.base = makeOcta(150.f);
+        S.modelMat = Mat4::I();
+    }
+    if (pressed(GLFW_KEY_4)) {
+        S.kind = PolyKind::Ico;
+        S.base = makeIcosa(150.f);
+        S.modelMat = Mat4::I();
+    }
+    if (pressed(GLFW_KEY_5)) {
+        S.kind = PolyKind::Dode;
+        S.base = makeDodeca(150.f);
+        S.modelMat = Mat4::I();
+    }
+
+    // проекции
+    if (pressed(GLFW_KEY_P)) S.proj.perspective = true;
+    if (pressed(GLFW_KEY_O)) S.proj.perspective = false;
+
+    // перенос (мировой)
+    if (pressed(GLFW_KEY_LEFT)) worldTranslate(S, -moveStep, 0, 0);
+    if (pressed(GLFW_KEY_RIGHT)) worldTranslate(S, +moveStep, 0, 0);
+    if (pressed(GLFW_KEY_UP)) worldTranslate(S, 0, -moveStep, 0);
+    if (pressed(GLFW_KEY_DOWN)) worldTranslate(S, 0, +moveStep, 0);
+    if (pressed(GLFW_KEY_PAGE_UP)) worldTranslate(S, 0, 0, +moveStep);
+    if (pressed(GLFW_KEY_PAGE_DOWN)) worldTranslate(S, 0, 0, -moveStep);
+
+    // масштаб (отн. МИРОВОГО центра объекта)
+    Vec3 Cw = worldCenter(S.base, S.modelMat);
+    if (pressed(GLFW_KEY_LEFT_BRACKET)) worldScaleAround(S, Cw, 1.f / scaleMul, 1.f / scaleMul, 1.f / scaleMul);
+    if (pressed(GLFW_KEY_RIGHT_BRACKET)) worldScaleAround(S, Cw, scaleMul, scaleMul, scaleMul);
+
+    // вращение вокруг прямой через мировой центр, параллельной оси
+    if (pressed(GLFW_KEY_X)) worldRotateAroundAxisThrough(S, Cw, {1, 0, 0}, rotStep);
+    if (pressed(GLFW_KEY_Y)) worldRotateAroundAxisThrough(S, Cw, {0, 1, 0}, rotStep);
+    if (pressed(GLFW_KEY_Z)) worldRotateAroundAxisThrough(S, Cw, {0, 0, 1}, rotStep);
+
+    // отражения относительно мировых координатных плоскостей
+    if (pressed(GLFW_KEY_F1)) worldReflectPlane(S, Mat4::RefXY());
+    if (pressed(GLFW_KEY_F2)) worldReflectPlane(S, Mat4::RefYZ());
+    if (pressed(GLFW_KEY_F3)) worldReflectPlane(S, Mat4::RefXZ());
+
+    // выбор оси (цикл X->Y->Z)
+    static bool tabLatch = false;
+    if (pressed(GLFW_KEY_TAB)) {
+        if (!tabLatch) {
+            S.axisSel = (S.axisSel == 'X' ? 'Y' : S.axisSel == 'Y' ? 'Z' : 'X');
+            std::cout << "Axis: " << S.axisSel << "\n";
+            tabLatch = true;
+        }
+    } else tabLatch = false;
+
+    if (pressed(GLFW_KEY_SEMICOLON)) { // ; — по часовой
+        Vec3 ax = (S.axisSel == 'X') ? Vec3{1, 0, 0} : (S.axisSel == 'Y') ? Vec3{0, 1, 0} : Vec3{0, 0, 1};
+        worldRotateAroundAxisThrough(S, Cw, ax, +rotStep);
+    }
+    if (pressed(GLFW_KEY_APOSTROPHE)) { // ' — против
+        Vec3 ax = (S.axisSel == 'X') ? Vec3{1, 0, 0} : (S.axisSel == 'Y') ? Vec3{0, 1, 0} : Vec3{0, 0, 1};
+        worldRotateAroundAxisThrough(S, Cw, ax, -rotStep);
+    }
+
+    // произвольная прямая P0, P1 (мировые)
+    if (pressed(GLFW_KEY_A)) S.P0.x -= moveStep;
+    if (pressed(GLFW_KEY_D)) S.P0.x += moveStep;
+    if (pressed(GLFW_KEY_W)) S.P0.y -= moveStep;
+    if (pressed(GLFW_KEY_S)) S.P0.y += moveStep;
+    if (pressed(GLFW_KEY_Q)) S.P0.z -= moveStep;
+    if (pressed(GLFW_KEY_E)) S.P0.z += moveStep;
+
+    if (pressed(GLFW_KEY_J)) S.P1.x -= moveStep;
+    if (pressed(GLFW_KEY_L)) S.P1.x += moveStep;
+    if (pressed(GLFW_KEY_I)) S.P1.y -= moveStep;
+    if (pressed(GLFW_KEY_K)) S.P1.y += moveStep;
+    if (pressed(GLFW_KEY_U)) S.P1.z -= moveStep;
+    if (pressed(GLFW_KEY_O)) S.P1.z += moveStep;
+
+    if (pressed(GLFW_KEY_MINUS)) worldRotateAroundLine(S, S.P0, S.P1, +lineRotStep);
+    if (pressed(GLFW_KEY_EQUAL)) worldRotateAroundLine(S, S.P0, S.P1, -lineRotStep);
+
+    // зум
+    if (pressed(GLFW_KEY_COMMA)) S.proj.scale *= 0.98f;
+    if (pressed(GLFW_KEY_PERIOD)) S.proj.scale *= 1.02f;
+
+    // сброс
+    if (pressed(GLFW_KEY_C)) {
+        switch (S.kind) {
+            case PolyKind::Tetra:
+                S.base = makeTetra(150.f);
+                break;
+            case PolyKind::Cube:
+                S.base = makeCube(150.f);
+                break;
+            case PolyKind::Octa:
+                S.base = makeOcta(150.f);
+                break;
+            case PolyKind::Ico:
+                S.base = makeIcosa(150.f);
+                break;
+            case PolyKind::Dode:
+                S.base = makeDodeca(150.f);
+                break;
+        }
+        S.modelMat = Mat4::I();
+        S.proj.perspective = true;
+        S.proj.ax = 35.264f;
+        S.proj.ay = 45.f;
+        S.proj.scale = 160.f;
+    }
+}
+
+int run() {
+    const int W = 1200, H = 800;
+
+    if (!glfwInit()) {
+        std::cerr << "GLFW init failed\n";
+        return 1;
+    }
 #ifdef __APPLE__
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 2);
+    glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
     glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
 #endif
-    GLFWwindow *window = glfwCreateWindow(1280, 800, "CG Lab 7–9 (ImGui + GLFW)", nullptr, nullptr);
+    GLFWwindow *window = glfwCreateWindow(W, H, "GLFW+ImGui Wireframe (perspective fixed, dual dodeca)", nullptr,
+                                          nullptr);
     if (!window) {
+        std::cerr << "GLFW window failed\n";
         glfwTerminate();
-        return 2;
+        return 1;
     }
     glfwMakeContextCurrent(window);
     glfwSwapInterval(1);
 
+    // ImGui
     IMGUI_CHECKVERSION();
     ImGui::CreateContext();
     ImGuiIO &io = ImGui::GetIO();
     (void) io;
-    io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
     ImGui::StyleColorsLight();
     ImGui_ImplGlfw_InitForOpenGL(window, true);
-    ImGui_ImplOpenGL3_Init("#version 330");
+#ifdef __APPLE__
+    ImGui_ImplOpenGL3_Init("#version 150");
+#else
+    ImGui_ImplOpenGL3_Init(nullptr);
+#endif
 
     AppState S;
-    S.base = makeSolid(S.current);
-    resetPlacement(S, {640, 400});
+    S.proj.cx = W * 0.5f;
+    S.proj.cy = H * 0.5f;
+    // начальная фигура крупнее (чтоб не терялась)
+    S.base = makeCube(150.f);
+
+    int polyIdx = 1;
+    bool persp = true;
+    bool showAxes = true;
 
     while (!glfwWindowShouldClose(window)) {
         glfwPollEvents();
+        applyKeyOps(window, S);
+
+        // ImGui frame
         ImGui_ImplOpenGL3_NewFrame();
         ImGui_ImplGlfw_NewFrame();
         ImGui::NewFrame();
 
+        // Панель
         ImGui::Begin("Controls");
-        if (ImGui::BeginCombo("Solid", "Select")) {
-            if (ImGui::Selectable("Cube", S.current == Solid::Cube)) {
-                S.current = Solid::Cube;
-                S.base = makeSolid(S.current);
-                resetPlacement(S, {640, 400});
+        const char *items[] = {"Tetrahedron", "Cube", "Octahedron", "Icosahedron", "Dodecahedron"};
+        if (ImGui::Combo("Polyhedron", &polyIdx, items, IM_ARRAYSIZE(items))) {
+            S.modelMat = Mat4::I();
+            switch (polyIdx) {
+                case 0:
+                    S.kind = PolyKind::Tetra;
+                    S.base = makeTetra(150.f);
+                    break;
+                case 1:
+                    S.kind = PolyKind::Cube;
+                    S.base = makeCube(150.f);
+                    break;
+                case 2:
+                    S.kind = PolyKind::Octa;
+                    S.base = makeOcta(150.f);
+                    break;
+                case 3:
+                    S.kind = PolyKind::Ico;
+                    S.base = makeIcosa(150.f);
+                    break;
+                case 4:
+                    S.kind = PolyKind::Dode;
+                    S.base = makeDodeca(150.f);
+                    break;
             }
-            if (ImGui::Selectable("Tetrahedron", S.current == Solid::Tetra)) {
-                S.current = Solid::Tetra;
-                S.base = makeSolid(S.current);
-                resetPlacement(S, {640, 400});
-            }
-            if (ImGui::Selectable("Octahedron", S.current == Solid::Octa)) {
-                S.current = Solid::Octa;
-                S.base = makeSolid(S.current);
-                resetPlacement(S, {640, 400});
-            }
-            if (ImGui::Selectable("Icosahedron", S.current == Solid::Icosa)) {
-                S.current = Solid::Icosa;
-                S.base = makeSolid(S.current);
-                resetPlacement(S, {640, 400});
-            }
-            if (ImGui::Selectable("Dodecahedron", S.current == Solid::Dodeca)) {
-                S.current = Solid::Dodeca;
-                S.base = makeSolid(S.current);
-                resetPlacement(S, {640, 400});
-            }
-            ImGui::EndCombo();
         }
-        if (ImGui::Button("Reset")) resetPlacement(S, {640, 400});
-        ImGui::Separator();
-
-        ImGui::Text("Projection");
-        int projIdx = (S.proj == Projection::Perspective ? 0 : 1);
-        if (ImGui::RadioButton("Perspective", projIdx == 0)) S.proj = Projection::Perspective;
-        ImGui::SameLine();
-        if (ImGui::RadioButton("Axonometric", projIdx == 1)) S.proj = Projection::Axonometric;
-        if (S.proj == Projection::Perspective) {
-            ImGui::SliderFloat("d (focal)", &S.persp.d, 100.0f, 1500.0f, "%.1f");
+        if (ImGui::Checkbox("Perspective", &persp)) S.proj.perspective = persp;
+        ImGui::Checkbox("Show axes", &showAxes);
+        ImGui::SliderFloat("Scale", &S.proj.scale, 20.f, 400.f);
+        if (!S.proj.perspective) {
+            ImGui::SliderFloat("Axon X", &S.proj.ax, 0.f, 90.f);
+            ImGui::SliderFloat("Axon Y", &S.proj.ay, 0.f, 90.f);
         } else {
-            ImGui::SliderFloat("ax (deg)", &S.axono.ax_deg, 0.0f, 90.0f, "%.3f");
-            ImGui::SliderFloat("ay (deg)", &S.axono.ay_deg, 0.0f, 90.0f, "%.3f");
+            ImGui::SliderFloat("Focus f", &S.proj.f, 100.f, 2000.f);
         }
-        ImGui::Separator();
-
-        ImGui::Text("Move (dx,dy,dz)");
-        ImGui::DragFloat3("##move", S.move, 1.0f);
-        if (ImGui::Button("Apply Move")) S.model = S.model * Mat4::translation(S.move[0], S.move[1], S.move[2]);
-
-        ImGui::Text("Scale (sx,sy,sz) about center");
-        ImGui::DragFloat3("##scale", S.scale, 0.01f, 0.01f, 10.0f);
-        if (ImGui::Button("Apply Scale about center")) {
-            Vec3 C = worldCentroid(S.base, S.model);
-            S.model =
-                    S.model * Mat4::translation(-C.x, -C.y, -C.z) * Mat4::scaling(S.scale[0], S.scale[1], S.scale[2]) *
-                    Mat4::translation(C.x, C.y, C.z);
+        ImGui::SeparatorText("World ops around center");
+        if (ImGui::Button("Rotate X +5")) {
+            Vec3 Cw = worldCenter(S.base, S.modelMat);
+            worldRotateAroundAxisThrough(S, Cw, {1, 0, 0}, +5.f);
         }
-
-        ImGui::Text("Rotate (deg) around X/Y/Z about center");
-        ImGui::DragFloat3("##rotxyz", S.rotXYZ, 0.1f);
-        if (ImGui::Button("Apply XYZ rotation about center")) {
-            Vec3 C = worldCentroid(S.base, S.model);
-            S.model =
-                    S.model * Mat4::translation(-C.x, -C.y, -C.z) * Mat4::rotX(S.rotXYZ[0]) * Mat4::rotY(S.rotXYZ[1]) *
-                    Mat4::rotZ(S.rotXYZ[2]) * Mat4::translation(C.x, C.y, C.z);
-        }
-
-        ImGui::Text("Rotate around center-parallel axis");
-        ImGui::SliderInt("Axis (0=X,1=Y,2=Z)", &S.axisIndex, 0, 2);
-        ImGui::DragFloat("Angle (deg)", &S.axisAngleDeg, 0.1f);
-        if (ImGui::Button("Apply Center-Axis Rotation")) {
-            Vec3 C = worldCentroid(S.base, S.model);
-            Vec3 dir = (S.axisIndex == 0 ? Vec3{1, 0, 0} : (S.axisIndex == 1 ? Vec3{0, 1, 0} : Vec3{0, 0, 1}));
-            dir = normalized(dir);
-            S.model = S.model * Mat4::rotateAroundLine(C, dir.x, dir.y, dir.z, S.axisAngleDeg);
-        }
-
-        ImGui::Text("Rotate about arbitrary line P0->P1");
-        ImGui::DragFloat3("P0", S.L_P0, 0.5f);
-        ImGui::DragFloat3("P1", S.L_P1, 0.5f);
-        ImGui::DragFloat("Angle", &S.L_angle, 0.1f);
-        if (ImGui::Button("Apply Line Rotation")) {
-            Vec3 P0{S.L_P0[0], S.L_P0[1], S.L_P0[2]};
-            Vec3 P1{S.L_P1[0], S.L_P1[1], S.L_P1[2]};
-            Vec3 d = normalized(P1 - P0);
-            S.model = S.model * Mat4::rotateAroundLine(P0, d.x, d.y, d.z, S.L_angle);
-        }
-
-        ImGui::Separator();
-        ImGui::Text("Reflect about plane");
-        ImGui::RadioButton("XY", &S.reflectIndex, 0);
         ImGui::SameLine();
-        ImGui::RadioButton("YZ", &S.reflectIndex, 1);
+        if (ImGui::Button("Rotate Y +5")) {
+            Vec3 Cw = worldCenter(S.base, S.modelMat);
+            worldRotateAroundAxisThrough(S, Cw, {0, 1, 0}, +5.f);
+        }
         ImGui::SameLine();
-        ImGui::RadioButton("XZ", &S.reflectIndex, 2);
-        if (ImGui::Button("Apply Reflection")) {
-            Mat4 R = (S.reflectIndex == 0 ? Mat4::reflectXY() : (S.reflectIndex == 1 ? Mat4::reflectYZ()
-                                                                                     : Mat4::reflectXZ()));
-            Vec3 C = worldCentroid(S.base, S.model);
-            S.model = S.model * Mat4::translation(-C.x, -C.y, -C.z) * R * Mat4::translation(C.x, C.y, C.z);
+        if (ImGui::Button("Rotate Z +5")) {
+            Vec3 Cw = worldCenter(S.base, S.modelMat);
+            worldRotateAroundAxisThrough(S, Cw, {0, 0, 1}, +5.f);
+        }
+
+        ImGui::SeparatorText("Reflect world planes");
+        if (ImGui::Button("XY")) worldReflectPlane(S, Mat4::RefXY());
+        ImGui::SameLine();
+        if (ImGui::Button("YZ")) worldReflectPlane(S, Mat4::RefYZ());
+        ImGui::SameLine();
+        if (ImGui::Button("XZ")) worldReflectPlane(S, Mat4::RefXZ());
+
+        ImGui::SeparatorText("Arbitrary line (world)");
+        ImGui::Text("P0(%.1f,%.1f,%.1f)  P1(%.1f,%.1f,%.1f)", S.P0.x, S.P0.y, S.P0.z, S.P1.x, S.P1.y, S.P1.z);
+        if (ImGui::Button("Rotate P0-P1 +5")) worldRotateAroundLine(S, S.P0, S.P1, +5.f);
+        ImGui::SameLine();
+        if (ImGui::Button("Rotate P0-P1 -5")) worldRotateAroundLine(S, S.P0, S.P1, -5.f);
+
+        if (ImGui::Button("Reset [C]")) {
+            switch (S.kind) {
+                case PolyKind::Tetra:
+                    S.base = makeTetra(150.f);
+                    break;
+                case PolyKind::Cube:
+                    S.base = makeCube(150.f);
+                    break;
+                case PolyKind::Octa:
+                    S.base = makeOcta(150.f);
+                    break;
+                case PolyKind::Ico:
+                    S.base = makeIcosa(150.f);
+                    break;
+                case PolyKind::Dode:
+                    S.base = makeDodeca(150.f);
+                    break;
+            }
+            S.modelMat = Mat4::I();
+            S.proj.perspective = true;
+            S.proj.ax = 35.264f;
+            S.proj.ay = 45.f;
+            S.proj.scale = 160.f;
+            persp = true;
         }
         ImGui::End();
 
-        ImGui::Begin("Viewport");
-        ImVec2 p0 = ImGui::GetCursorScreenPos();
-        ImVec2 avail = ImGui::GetContentRegionAvail();
-        if (avail.x < 100) avail.x = 100;
-        if (avail.y < 100) avail.y = 100;
-        ImDrawList *dl = ImGui::GetWindowDrawList();
-        dl->AddRectFilled(p0, {p0.x + avail.x, p0.y + avail.y}, IM_COL32(245, 245, 245, 255));
-        drawPolyhedronWire(S.base, S.model, p0, avail, S.proj, S.persp, S.axono);
-        ImGui::Dummy(avail);
-        ImGui::End();
+        // Ресайз
+        int fbw, fbh;
+        ImGuiViewport* vp = ImGui::GetMainViewport();
+        S.proj.cx = vp->Size.x * 0.5f;
+        S.proj.cy = vp->Size.y * 0.5f;
 
+        // Оси
+        if (showAxes) drawAxes(S.proj, 250.f);
+
+        // Wireframe объекта
+        drawWireImGui(S.base, S.modelMat, S.proj, IM_COL32(20, 20, 20, 255), 1.8f);
+
+        // Линия P0-P1
+        int x0, y0, x1, y1;
+        if (S.proj.project(S.P0, x0, y0) && S.proj.project(S.P1, x1, y1)) {
+            ImGui::GetBackgroundDrawList()->AddLine(ImVec2((float) x0, (float) y0),
+                                                    ImVec2((float) x1, (float) y1),
+                                                    IM_COL32(200, 0, 0, 255), 2.0f);
+        }
+
+        // Render
         ImGui::Render();
-        int display_w, display_h;
-        glfwGetFramebufferSize(window, &display_w, &display_h);
-        glViewport(0, 0, display_w, display_h);
-        glClearColor(1, 1, 1, 1);
+        glViewport(0, 0, fbw, fbh);
+        glClearColor(0.96f, 0.96f, 0.96f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT);
         ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
         glfwSwapBuffers(window);

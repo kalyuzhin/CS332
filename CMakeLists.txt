@@ -31,8 +31,8 @@ target_sources(${PROJECT_NAME} PRIVATE
         build/imgui/backends/imgui_impl_opengl3.cpp
 )
 
-add_subdirectory(build/glfw)
 if(WIN32)
+    add_subdirectory(build/glfw)
     add_definitions(-D_GLFW_WIN32)
     set(WIN32_LIBRARIES
         opengl32

@@ -1,7 +1,7 @@
 #include "lab06/lab.h"
 
 int main() {
-    run_lab6();
+    run();
 
 	return 0;
 }
