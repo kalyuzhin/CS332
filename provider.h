@@ -16,6 +16,7 @@
 #include <unordered_set>
 #include "opencv2/opencv.hpp"
 #include "imgui.h"
+#include "imfilebrowser.h"
 #include <cmath>
 #include "imgui_impl_glfw.h"
 #include "imgui_impl_opengl3.h"

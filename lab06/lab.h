@@ -431,11 +431,13 @@ drawWireImGui(const Mesh &base, const Mat4 &model, const Projector &proj, ImU32 
     }
 }
 
-static void uploadObject() {
+// выгрузка объект в комп
+static void openObject() {
 
 }
 
-static void downloadObject(string filename, AppState& appState) {
+
+static void saveObject(string filename, AppState& appState) {
 
 }
 
@@ -563,6 +565,7 @@ int run() {
     AppState S;
     int polyIdx = 1;
     bool persp = true, showAxes = true;
+    ImGui::FileBrowser fileDialog;
     while (!glfwWindowShouldClose(win)) {
         glfwPollEvents();
         applyKeyOps(win, S);
@@ -594,7 +597,6 @@ int run() {
                 S.base = makeDodeca(150.f);
             }
         }
-        /*if (ImGui::Checkbox("Perspective", &S.proj.perspective)) S.proj.perspective = persp;*/
         ImGui::Checkbox("Perspective", &S.proj.perspective);
         ImGui::Checkbox("Show axes", &showAxes);
         ImGui::SliderFloat("Scale", &S.proj.scale, 20.f, 400.f);
@@ -649,7 +651,17 @@ int run() {
             S.proj.scale = 160.f;
             persp = true;
         }
+        ImGui::SeparatorText("File");
+        if (ImGui::Button("Open file dialog")) {
+            fileDialog.Open();
+        }
         ImGui::End();
+        fileDialog.Display();
+        if (fileDialog.HasSelected())
+        {
+            std::cout << "Selected filename" << fileDialog.GetSelected().string() << std::endl;
+            fileDialog.ClearSelected();
+        }
         S.proj.cx = ImGui::GetIO().DisplaySize.x * 0.5f;
         S.proj.cy = ImGui::GetIO().DisplaySize.y * 0.5f;
         if (showAxes) drawAxes(S.proj, 250.f);
