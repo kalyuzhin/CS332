@@ -488,7 +488,6 @@ static void applyKeyOps(GLFWwindow *w, AppState &S) {
         Vec3 a = (S.axisSel == 'X') ? Vec3{1, 0, 0} : (S.axisSel == 'Y') ? Vec3{0, 1, 0} : Vec3{0, 0, 1};
         worldRotateAroundAxisThrough(S, Cw, a, -rot);
     }
-    // � �� ������
     if (down(GLFW_KEY_A)) S.P0.x -= mv;
     if (down(GLFW_KEY_D)) S.P0.x += mv;
     if (down(GLFW_KEY_W)) S.P0.y -= mv;
