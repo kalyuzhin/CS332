@@ -431,9 +431,21 @@ drawWireImGui(const Mesh &base, const Mat4 &model, const Projector &proj, ImU32 
     }
 }
 
+static void uploadObject() {
+
+}
+
+static void downloadObject(string filename, AppState& appState) {
+
+}
+
 static void applyKeyOps(GLFWwindow *w, AppState &S) {
     auto down = [&](int k) { return glfwGetKey(w, k) == GLFW_PRESS; };
     float mv = 20.f, rot = 5.f, sm = 1.05f, lr = 5.f;
+    if (ImGui::GetIO().WantCaptureKeyboard)
+    {
+        return;
+    }
     if (down(GLFW_KEY_1)) {
         S.kind = PolyKind::Tetra;
         S.base = makeTetra(150.f);
@@ -491,18 +503,6 @@ static void applyKeyOps(GLFWwindow *w, AppState &S) {
         Vec3 a = (S.axisSel == 'X') ? Vec3{1, 0, 0} : (S.axisSel == 'Y') ? Vec3{0, 1, 0} : Vec3{0, 0, 1};
         worldRotateAroundAxisThrough(S, Cw, a, -rot);
     }
-    if (down(GLFW_KEY_A)) S.P0.x -= mv;
-    if (down(GLFW_KEY_D)) S.P0.x += mv;
-    if (down(GLFW_KEY_W)) S.P0.y -= mv;
-    if (down(GLFW_KEY_S)) S.P0.y += mv;
-    if (down(GLFW_KEY_Q)) S.P0.z -= mv;
-    if (down(GLFW_KEY_E)) S.P0.z += mv;
-    if (down(GLFW_KEY_J)) S.P1.x -= mv;
-    if (down(GLFW_KEY_L)) S.P1.x += mv;
-    if (down(GLFW_KEY_I)) S.P1.y -= mv;
-    if (down(GLFW_KEY_K)) S.P1.y += mv;
-    if (down(GLFW_KEY_U)) S.P1.z -= mv;
-    if (down(GLFW_KEY_O)) S.P1.z += mv;
     if (down(GLFW_KEY_MINUS)) worldRotateAroundLine(S, S.P0, S.P1, +lr);
     if (down(GLFW_KEY_EQUAL)) worldRotateAroundLine(S, S.P0, S.P1, -lr);
     if (down(GLFW_KEY_COMMA)) S.proj.scale *= 0.98f;
@@ -594,7 +594,8 @@ int run() {
                 S.base = makeDodeca(150.f);
             }
         }
-        if (ImGui::Checkbox("Perspective", &S.proj.perspective)) S.proj.perspective = persp;
+        /*if (ImGui::Checkbox("Perspective", &S.proj.perspective)) S.proj.perspective = persp;*/
+        ImGui::Checkbox("Perspective", &S.proj.perspective);
         ImGui::Checkbox("Show axes", &showAxes);
         ImGui::SliderFloat("Scale", &S.proj.scale, 20.f, 400.f);
         if (!S.proj.perspective) {
