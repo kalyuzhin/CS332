@@ -526,10 +526,10 @@ static void applyKeyOps(GLFWwindow *w, AppState &S) {
                 break;
         }
         S.modelMat = Mat4::I();
-        S.proj.perspective = true;
+        //S.proj.perspective = true;
         S.proj.ax = 35.264f;
         S.proj.ay = 45.f;
-        S.proj.scale = 160.f;
+        //S.proj.scale = 160.f;
     }
 }
 
@@ -594,7 +594,7 @@ int run() {
                 S.base = makeDodeca(150.f);
             }
         }
-        if (ImGui::Checkbox("Perspective", &persp)) S.proj.perspective = persp;
+        if (ImGui::Checkbox("Perspective", &S.proj.perspective)) S.proj.perspective = persp;
         ImGui::Checkbox("Show axes", &showAxes);
         ImGui::SliderFloat("Scale", &S.proj.scale, 20.f, 400.f);
         if (!S.proj.perspective) {
