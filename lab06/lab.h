@@ -249,46 +249,50 @@ inline Mesh makeOcta(float s = 1.f) {
 
 inline Mesh makeIcosa(float s = 1.f) {
     const float phi = (1.f + std::sqrt(5.f)) * 0.5f;
-    vector<Vec3> W = {{0,    -1,   -phi},
-                      {0,    -1,   phi},
-                      {0,    1,    -phi},
-                      {0,    1,    phi},
-                      {-1,   -phi, 0},
-                      {-1,   phi,  0},
-                      {1,    -phi, 0},
-                      {1,    phi,  0},
-                      {-phi, 0,    -1},
-                      {phi,  0,    -1},
-                      {-phi, 0,    1},
-                      {phi,  0,    1}};
-    float maxr = 0.f;
-    for (auto &p: W)maxr = std::max(maxr, vlen(p));
-    float k = s / maxr;
-    Mesh P;
-    for (auto &p: W)P.V.push_back({p.x * k, p.y * k, p.z * k});
-    P.F = {
-            {{0, 8,  2}},
-            {{0, 2,  9}},
-            {{0, 9,  6}},
-            {{0, 6,  1}},
-            {{0, 1,  8}},
-            {{1, 6,  11}},
-            {{1, 11, 10}},
-            {{1, 10, 8}},
-            {{2, 8,  5}},
-            {{2, 5,  7}},
-            {{2, 7,  9}},
-            {{3, 5,  8}},
-            {{3, 11, 5}},
-            {{3, 10, 11}},
-            {{3, 4,  10}},
-            {{3, 8,  4}},
-            {{4, 8,  10}},
-            {{5, 11, 7}},
-            {{6, 9,  11}},
-            {{7, 11, 9}}
+    vector<Vec3> verts = {
+            {-1,   phi,  0},
+            {1,    phi,  0},
+            {-1,   -phi, 0},
+            {1,    -phi, 0},
+            {0,    -1,   phi},
+            {0,    1,    phi},
+            {0,    -1,   -phi},
+            {0,    1,    -phi},
+            {phi,  0,    -1},
+            {phi,  0,    1},
+            {-phi, 0,    -1},
+            {-phi, 0,    1}
     };
-    return P;
+    float maxr = 0.f;
+    for (auto &v: verts) maxr = std::max(maxr, vlen(v));
+    float k = s / maxr;
+
+    Mesh M;
+    for (auto &v: verts) M.V.push_back({v.x * k, v.y * k, v.z * k});
+
+    M.F = {
+            {{0,  11, 5}},
+            {{0,  5,  1}},
+            {{0,  1,  7}},
+            {{0,  7,  10}},
+            {{0,  10, 11}},
+            {{1,  5,  9}},
+            {{5,  11, 4}},
+            {{11, 10, 2}},
+            {{10, 7,  6}},
+            {{7,  1,  8}},
+            {{3,  9,  4}},
+            {{3,  4,  2}},
+            {{3,  2,  6}},
+            {{3,  6,  8}},
+            {{3,  8,  9}},
+            {{4,  9,  5}},
+            {{2,  4,  11}},
+            {{6,  2,  10}},
+            {{8,  6,  7}},
+            {{9,  8,  1}}
+    };
+    return M;
 }
 
 inline Mesh makeDodeca(float s = 1.f) {
@@ -478,8 +482,7 @@ static void applyKeyOps(GLFWwindow *w, AppState &S) {
             S.axisSel = (S.axisSel == 'X' ? 'Y' : S.axisSel == 'Y' ? 'Z' : 'X');
             tl = true;
         }
-    }
-    else tl = false;
+    } else tl = false;
     if (down(GLFW_KEY_SEMICOLON)) {
         Vec3 a = (S.axisSel == 'X') ? Vec3{1, 0, 0} : (S.axisSel == 'Y') ? Vec3{0, 1, 0} : Vec3{0, 0, 1};
         worldRotateAroundAxisThrough(S, Cw, a, +rot);
@@ -597,8 +600,7 @@ int run() {
         if (!S.proj.perspective) {
             ImGui::SliderFloat("Axon X", &S.proj.ax, 0.f, 90.f);
             ImGui::SliderFloat("Axon Y", &S.proj.ay, 0.f, 90.f);
-        }
-        else { ImGui::SliderFloat("Focus f", &S.proj.f, 100.f, 2000.f); }
+        } else { ImGui::SliderFloat("Focus f", &S.proj.f, 100.f, 2000.f); }
         ImGui::SeparatorText("Rotate around center");
         if (ImGui::Button("X +5")) {
             Vec3 Cw = worldCenter(S.base, S.modelMat);
