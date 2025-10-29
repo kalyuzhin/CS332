@@ -42,7 +42,20 @@ struct Mat4{
     static Mat4 Rx(float deg){float c=std::cos(deg2rad(deg)),s=std::sin(deg2rad(deg));Mat4 R=I();R.m[1][1]=c;R.m[1][2]=s;R.m[2][1]=-s;R.m[2][2]=c;return R;}
     static Mat4 Ry(float deg){float c=std::cos(deg2rad(deg)),s=std::sin(deg2rad(deg));Mat4 R=I();R.m[0][0]=c;R.m[0][2]=-s;R.m[2][0]=s;R.m[2][2]=c;return R;}
     static Mat4 Rz(float deg){float c=std::cos(deg2rad(deg)),s=std::sin(deg2rad(deg));Mat4 R=I();R.m[0][0]=c;R.m[0][1]=s;R.m[1][0]=-s;R.m[1][1]=c;return R;}
-    static Mat4 Raxis(const Vec3&u,float deg){float a=deg2rad(deg),c=std::cos(a),s=std::sin(a),t=1.f-c;float l=u.x,m=u.y,n=u.z;Mat4 R=I();R.m[0][0]=t*l*l+c;R.m[0][1]=t*l*m+s*n;R.m[0][2]=t*l*n-s*m;R.m[1][0]=t*m*l-s*n;R.m[1][1]=t*m*m+c;R.m[1][2]=t*m*n+s*l;R.m[2][0]=t*n*l+s*m;R.m[2][1]=t*n*m-s*l;R.m[2][2]=t*n*n+c;return R;}
+    static Mat4 Raxis(const Vec3&u,float deg) {
+        float a=deg2rad(deg), c=std::cos(a), s=std::sin(a), t=1.f-c;
+        float l=u.x, m=u.y, n=u.z;
+        Mat4 R=I();
+        R.m[0][0]=t*l*l+c;
+        R.m[0][1]=t*l*m+s*n;
+        R.m[0][2]=t*l*n-s*m;
+        R.m[1][0]=t*m*l-s*n;
+        R.m[1][1]=t*m*m+c;
+        R.m[1][2]=t*m*n+s*l;
+        R.m[2][0]=t*n*l+s*m;
+        R.m[2][1]=t*n*m-s*l;
+        R.m[2][2]=t*n*n+c;
+        return R;}
     static Mat4 RefXY(){Mat4 M=I();M.m[2][2]=-1.f;return M;}
     static Mat4 RefYZ(){Mat4 M=I();M.m[0][0]=-1.f;return M;}
     static Mat4 RefXZ(){Mat4 M=I();M.m[1][1]=-1.f;return M;}
@@ -131,11 +144,19 @@ struct AppState{
 };
 
 inline Vec3 worldCenter(const Mesh&base,const Mat4&M){return xform(centroid(base),M);}
-inline void worldTranslate(AppState&S,float dx,float dy,float dz){S.modelMat=Mat4::T(dx,dy,dz)*S.modelMat;}
-inline void worldScaleAround(AppState&S,const Vec3&Cw,float sx,float sy,float sz){S.modelMat=Mat4::T(-Cw.x,-Cw.y,-Cw.z)*Mat4::S(sx,sy,sz)*Mat4::T(Cw.x,Cw.y,Cw.z)*S.modelMat;}
-inline void worldRotateAroundAxisThrough(AppState&S,const Vec3&Cw,const Vec3&u,float deg){S.modelMat=Mat4::T(-Cw.x,-Cw.y,-Cw.z)*Mat4::Raxis(u,deg)*Mat4::T(Cw.x,Cw.y,Cw.z)*S.modelMat;}
-inline void worldReflectPlane(AppState&S,const Mat4&R){S.modelMat=R*S.modelMat;}
-inline void worldRotateAroundLine(AppState&S,const Vec3&P0w,const Vec3&P1w,float deg){Vec3 u=norm(P1w-P0w);S.modelMat=Mat4::T(-P0w.x,-P0w.y,-P0w.z)*Mat4::Raxis(u,deg)*Mat4::T(P0w.x,P0w.y,P0w.z)*S.modelMat;}
+inline void worldTranslate(AppState&S,float dx,float dy,float dz){
+    S.modelMat = S.modelMat * Mat4::T(dx,dy,dz);
+}
+inline void worldScaleAround(AppState&S,const Vec3&Cw,float sx,float sy,float sz){
+    S.modelMat = S.modelMat * Mat4::T(-Cw.x,-Cw.y,-Cw.z) * Mat4::S(sx,sy,sz) * Mat4::T(Cw.x,Cw.y,Cw.z);}
+inline void worldRotateAroundAxisThrough(AppState&S, const Vec3&Cw, const Vec3&u, float deg) {
+    S.modelMat = S.modelMat * Mat4::T(-Cw.x, -Cw.y, -Cw.z) * Mat4::Raxis(u, deg) * Mat4::T(Cw.x,Cw.y,Cw.z);
+}
+inline void worldReflectPlane(AppState&S,const Mat4&R){S.modelMat=S.modelMat*R;}
+inline void worldRotateAroundLine(AppState&S,const Vec3&P0w,const Vec3&P1w,float deg){
+    Vec3 u=norm(P1w-P0w);
+    S.modelMat= S.modelMat * Mat4::T(-P0w.x,-P0w.y,-P0w.z) * Mat4::Raxis(u,deg) * Mat4::T(P0w.x,P0w.y,P0w.z);
+}
 
 static void drawAxes(const Projector&proj,float len=250.f){
     ImDrawList* dl=ImGui::GetBackgroundDrawList();
@@ -190,12 +211,14 @@ static void applyKeyOps(GLFWwindow* w,AppState& S){
     if(down(GLFW_KEY_TAB)){ if(!tl){ S.axisSel=(S.axisSel=='X'?'Y':S.axisSel=='Y'?'Z':'X'); tl=true; } } else tl=false;
     if(down(GLFW_KEY_SEMICOLON)){ Vec3 a=(S.axisSel=='X')?Vec3{1,0,0}:(S.axisSel=='Y')?Vec3{0,1,0}:Vec3{0,0,1}; worldRotateAroundAxisThrough(S,Cw,a,+rot); }
     if(down(GLFW_KEY_APOSTROPHE)){ Vec3 a=(S.axisSel=='X')?Vec3{1,0,0}:(S.axisSel=='Y')?Vec3{0,1,0}:Vec3{0,0,1}; worldRotateAroundAxisThrough(S,Cw,a,-rot); }
+    // я бы отсюда
     if(down(GLFW_KEY_A)) S.P0.x-=mv; if(down(GLFW_KEY_D)) S.P0.x+=mv;
     if(down(GLFW_KEY_W)) S.P0.y-=mv; if(down(GLFW_KEY_S)) S.P0.y+=mv;
     if(down(GLFW_KEY_Q)) S.P0.z-=mv; if(down(GLFW_KEY_E)) S.P0.z+=mv;
     if(down(GLFW_KEY_J)) S.P1.x-=mv; if(down(GLFW_KEY_L)) S.P1.x+=mv;
     if(down(GLFW_KEY_I)) S.P1.y-=mv; if(down(GLFW_KEY_K)) S.P1.y+=mv;
     if(down(GLFW_KEY_U)) S.P1.z-=mv; if(down(GLFW_KEY_O)) S.P1.z+=mv;
+    // до сюда убрал код чтобы не засорять
     if(down(GLFW_KEY_MINUS)) worldRotateAroundLine(S,S.P0,S.P1,+lr);
     if(down(GLFW_KEY_EQUAL)) worldRotateAroundLine(S,S.P0,S.P1,-lr);
     if(down(GLFW_KEY_COMMA))  S.proj.scale*=0.98f;
