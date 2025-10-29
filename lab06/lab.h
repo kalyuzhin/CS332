@@ -139,7 +139,8 @@ struct AppState{
     Mesh base=makeCube(150.f);
     Mat4 modelMat=Mat4::I();
     Projector proj;
-    Vec3 P0{-200,0,0},P1{200,0,0};
+    Vec3 P0{ -200,0,0 };
+    Vec3 P1{ 200,0,0 };
     char axisSel='X';
 };
 
@@ -296,7 +297,15 @@ int run(){
         if(ImGui::Button("YZ")) worldReflectPlane(S,Mat4::RefYZ()); ImGui::SameLine();
         if(ImGui::Button("XZ")) worldReflectPlane(S,Mat4::RefXZ());
         ImGui::SeparatorText("Arbitrary line");
-        ImGui::Text("P0(%.1f,%.1f,%.1f) P1(%.1f,%.1f,%.1f)",S.P0.x,S.P0.y,S.P0.z,S.P1.x,S.P1.y,S.P1.z);
+        ImGui::Text("P0 coordinates:");
+        ImGui::InputFloat("x P0", &S.P0.x);
+        ImGui::InputFloat("y P0", &S.P0.y);
+        ImGui::InputFloat("z P0", &S.P0.z);
+        ImGui::Text("P1 coordinates:");
+        ImGui::InputFloat("x P1", &S.P1.x);
+        ImGui::InputFloat("y P1", &S.P1.y);
+        ImGui::InputFloat("z P1", &S.P1.z);
+        ImGui::Text("P0(%.1f, %.1f, %.1f) P1(%.1f, %.1f, %.1f)",S.P0.x,S.P0.y,S.P0.z,S.P1.x,S.P1.y,S.P1.z);
         if(ImGui::Button("Rotate P0-P1 +5")) worldRotateAroundLine(S,S.P0,S.P1,+5.f); ImGui::SameLine();
         if(ImGui::Button("Rotate P0-P1 -5")) worldRotateAroundLine(S,S.P0,S.P1,-5.f);
         if(ImGui::Button("Reset [C]")){
