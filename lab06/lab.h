@@ -501,7 +501,6 @@ static void applyKeyOps(GLFWwindow *w, AppState &S) {
     if (down(GLFW_KEY_K)) S.P1.y += mv;
     if (down(GLFW_KEY_U)) S.P1.z -= mv;
     if (down(GLFW_KEY_O)) S.P1.z += mv;
-    // �� ���� ����� ��� ����� �� ��������
     if (down(GLFW_KEY_MINUS)) worldRotateAroundLine(S, S.P0, S.P1, +lr);
     if (down(GLFW_KEY_EQUAL)) worldRotateAroundLine(S, S.P0, S.P1, -lr);
     if (down(GLFW_KEY_COMMA)) S.proj.scale *= 0.98f;
