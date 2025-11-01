@@ -336,6 +336,20 @@ inline Mesh makeDodeca(float s = 1.f) {
     return dode;
 }
 
+inline Mesh transformMesh(const Mesh& original, const Mat4& transform) {
+    Mesh newMesh;
+
+    newMesh.V.reserve(original.V.size());
+    for (const auto& vertex : original.V) {
+        Vec3 transformed = xform({ vertex.x, vertex.y, vertex.z }, transform);
+        newMesh.V.push_back({ transformed.x, transformed.y, transformed.z });
+    }
+
+    newMesh.F = original.F;
+
+    return newMesh;
+}
+
 struct Projector {
     bool perspective = true;
     float f = 600.f;
@@ -366,10 +380,25 @@ struct Projector {
 };
 
 enum class PolyKind {
-    Tetra = 0, Cube, Octa, Ico, Dode
+    Tetra = 0, Cube, Octa, Ico, Dode, UserObj
+};
+
+struct MeshData {
+    const char* name;
+    PolyKind kind;
+    Mesh mesh;
 };
 
 struct AppState {
+    vector<string> meshesNames = { "Tetrahedron", "Cube", "Octahedron", "Icosahedron", "Dodecahedron" };
+    vector<pair<PolyKind, Mesh>> meshes = {
+        {PolyKind::Tetra, makeTetra(150.f)},
+        {PolyKind::Cube, makeCube(150.f)},
+        {PolyKind::Octa, makeOcta(150.f)},
+        {PolyKind::Ico, makeIcosa(150.f)},
+        {PolyKind::Dode, makeDodeca(150.f)}
+    };
+    int polyIdx = 1;
     PolyKind kind = PolyKind::Cube;
     Mesh base = makeCube(150.f);
     Mat4 modelMat = Mat4::I();
@@ -377,6 +406,14 @@ struct AppState {
     Vec3 P0{-200, 0, 0};
     Vec3 P1{200, 0, 0};
     char axisSel = 'X';
+
+    vector<const char*> getMeshNamesForImGui() {
+        vector<const char*> result;
+        for (const auto& name : meshesNames) {
+            result.push_back(name.c_str());
+        }
+        return result;
+    }
 };
 
 inline Vec3 worldCenter(const Mesh &base, const Mat4 &M) { return xform(centroid(base), M); }
@@ -431,14 +468,117 @@ drawWireImGui(const Mesh &base, const Mat4 &model, const Projector &proj, ImU32 
     }
 }
 
-// выгрузка объект в комп
-static void openObject() {
+static bool openObject(const string& filename, AppState& appState, Mesh& mesh) {
+    mesh.V.clear();
+    mesh.F.clear();
 
+    ifstream file(filename);
+    if (!file.is_open()) {
+        std::cerr << "Error: couldn`t open file  " << filename << " for reading" << std::endl;
+        return false;
+    }
+
+    std::string line;
+    int lineNumber = 0;
+    int vertexCount = 0;
+    int faceCount = 0;
+
+    while (std::getline(file, line)) {
+        lineNumber++;
+
+        if (line.empty() || line[0] == '#') {
+            continue;
+        }
+
+        std::istringstream iss(line);
+        std::string prefix;
+        iss >> prefix;
+
+        if (prefix == "v") {
+            Vertex vertex;
+            if (iss >> vertex.x >> vertex.y >> vertex.z) {
+                mesh.V.push_back(vertex);
+                vertexCount++;
+            }
+            else {
+                std::cerr << "Warning: wrong vertex format " << lineNumber << std::endl;
+            }
+        }
+        else if (prefix == "f") {
+            Face face;
+            std::string token;
+
+            while (iss >> token) {
+                std::istringstream tokenStream(token);
+                std::string indexStr;
+
+                if (std::getline(tokenStream, indexStr, '/')) {
+                    try {
+                        int index = std::stoi(indexStr) - 1;
+                        if (index >= 0 && index < static_cast<int>(mesh.V.size())) {
+                            face.idx.push_back(index);
+                        }
+                        else {
+                            std::cerr << "Warning: wrong index vertexes " << (index + 1)
+                                << " in line " << lineNumber << std::endl;
+                        }
+                    }
+                    catch (const std::exception& e) {
+                        std::cerr << "Error: wrong index format " << lineNumber << std::endl;
+                    }
+                }
+            }
+
+            if (face.idx.size() >= 3) {
+                mesh.F.push_back(face);
+                faceCount++;
+            }
+            else if (!face.idx.empty()) {
+                std::cerr << "Warning: polygon have less then 3 vertexes " << lineNumber << std::endl;
+            }
+        }
+
+        // Ignore other types. It will be realized later
+        else if (prefix == "vt" || prefix == "vn" || prefix == "vp") {
+            continue;
+        }
+    }
+    file.close();
+    filesystem::path filepath(filename);
+    string objName = filepath.filename().string();
+    appState.meshesNames.push_back(objName);
+    appState.meshes.push_back({PolyKind::UserObj, mesh});
+    return true;
 }
 
 
-static void saveObject(string filename, AppState& appState) {
+static bool saveObject(const string& filename, AppState& appState, const Mesh& base) {
+    std::ofstream file(filename);
+    if (!file.is_open()) {
+        std::cerr << "Error: couldn`t open file  " << filename << " for writing" << std::endl;
+        return false;
+    }
 
+    for (const auto& vertex : base.V) {
+        file << "v " << vertex.x << " " << vertex.y << " " << vertex.z << "\n";
+    }
+
+    file << "# Vertexes: " << base.V.size() << ", Faces: " << base.F.size() << "\n\n";
+    for (const auto& vertex : base.V) {
+        file << "v " << vertex.x << " " << vertex.y << " " << vertex.z << "\n";
+    }
+    file << "\n";
+    for (const auto& face : base.F) {
+        file << "f";
+        for (int index : face.idx) {
+            file << " " << (index + 1);
+        }
+        file << "\n";
+    }
+
+    file.close();
+    cout << "File saved!" << endl;
+    return true;
 }
 
 static void applyKeyOps(GLFWwindow *w, AppState &S) {
@@ -510,7 +650,7 @@ static void applyKeyOps(GLFWwindow *w, AppState &S) {
     if (down(GLFW_KEY_COMMA)) S.proj.scale *= 0.98f;
     if (down(GLFW_KEY_PERIOD)) S.proj.scale *= 1.02f;
     if (down(GLFW_KEY_C)) {
-        switch (S.kind) {
+        /*switch (S.kind) {
             case PolyKind::Tetra:
                 S.base = makeTetra(150.f);
                 break;
@@ -526,7 +666,7 @@ static void applyKeyOps(GLFWwindow *w, AppState &S) {
             case PolyKind::Dode:
                 S.base = makeDodeca(150.f);
                 break;
-        }
+        }*/
         S.modelMat = Mat4::I();
         //S.proj.perspective = true;
         S.proj.ax = 35.264f;
@@ -565,7 +705,19 @@ int run() {
     AppState S;
     int polyIdx = 1;
     bool persp = true, showAxes = true;
-    ImGui::FileBrowser fileDialog;
+
+    ImGui::FileBrowser saveFileDialog(
+        ImGuiFileBrowserFlags_SelectDirectory |
+        ImGuiFileBrowserFlags_CloseOnEsc |
+        ImGuiFileBrowserFlags_ConfirmOnEnter
+    );
+    
+    ImGui::FileBrowser openFileDialog(
+        ImGuiFileBrowserFlags_CloseOnEsc |
+        ImGuiFileBrowserFlags_ConfirmOnEnter
+    );
+    openFileDialog.SetTypeFilters({ ".obj" });
+
     while (!glfwWindowShouldClose(win)) {
         glfwPollEvents();
         applyKeyOps(win, S);
@@ -573,10 +725,14 @@ int run() {
         ImGui_ImplGlfw_NewFrame();
         ImGui::NewFrame();
         ImGui::Begin("Controls");
-        const char *items[] = {"Tetrahedron", "Cube", "Octahedron", "Icosahedron", "Dodecahedron"};
-        if (ImGui::Combo("Polyhedron", &polyIdx, items, IM_ARRAYSIZE(items))) {
+        //const char *items[] = {"Tetrahedron", "Cube", "Octahedron", "Icosahedron", "Dodecahedron"};
+        auto meshNames = S.getMeshNamesForImGui();
+        if (ImGui::Combo("Polyhedron", &S.polyIdx, meshNames.data(), meshNames.size())) {
             S.modelMat = Mat4::I();
-            if (polyIdx == 0) {
+            pair<PolyKind, Mesh> meshPair = S.meshes[S.polyIdx];
+            S.kind = meshPair.first;
+            S.base = meshPair.second;
+            /*if (polyIdx == 0) {
                 S.kind = PolyKind::Tetra;
                 S.base = makeTetra(150.f);
             }
@@ -595,7 +751,7 @@ int run() {
             if (polyIdx == 4) {
                 S.kind = PolyKind::Dode;
                 S.base = makeDodeca(150.f);
-            }
+            }*/
         }
         ImGui::Checkbox("Perspective", &S.proj.perspective);
         ImGui::Checkbox("Show axes", &showAxes);
@@ -652,16 +808,47 @@ int run() {
             persp = true;
         }
         ImGui::SeparatorText("File");
-        if (ImGui::Button("Open file dialog")) {
-            fileDialog.Open();
+        static char newFilename[256] = "";
+        ImGui::InputText("Filename", newFilename, IM_ARRAYSIZE(newFilename));
+
+        if (ImGui::Button("Open file")) {
+            openFileDialog.Open();
+        }
+        ImGui::SameLine();
+        if (strlen(newFilename) == 0) {
+            ImGui::BeginDisabled();
+            ImGui::Button("Save file");
+            ImGui::EndDisabled();
+            if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled)) {
+                ImGui::SetTooltip("Enter filename");
+            }
+        }
+        else {
+            if (ImGui::Button("Save file")) {
+                saveFileDialog.Open();
+            }
         }
         ImGui::End();
-        fileDialog.Display();
-        if (fileDialog.HasSelected())
+
+        saveFileDialog.Display();
+        if (saveFileDialog.HasSelected())
         {
-            std::cout << "Selected filename" << fileDialog.GetSelected().string() << std::endl;
-            fileDialog.ClearSelected();
+            filesystem::path dir_path = saveFileDialog.GetDirectory();
+            filesystem::path fullpath = dir_path / filesystem::path(newFilename);
+            cout << fullpath.string() << endl;
+            Mesh newMesh = transformMesh(S.meshes[S.polyIdx].second, S.modelMat);
+            saveObject(fullpath.string(), S, newMesh);
+            saveFileDialog.ClearSelected();
         }
+
+        openFileDialog.Display();
+        if (openFileDialog.HasSelected()) {
+            string filenameToOpen = openFileDialog.GetSelected().string();
+            Mesh newMesh;
+            openObject(filenameToOpen, S, newMesh);
+            openFileDialog.ClearSelected();
+        }
+
         S.proj.cx = ImGui::GetIO().DisplaySize.x * 0.5f;
         S.proj.cy = ImGui::GetIO().DisplaySize.y * 0.5f;
         if (showAxes) drawAxes(S.proj, 250.f);
