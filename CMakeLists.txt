@@ -7,6 +7,8 @@ set(SOURCES
     main.cpp
     provider.h
         lab06/lab.h
+        lab07/task2.cpp
+        lab07/task2.h
 )
 
 file(GLOB_RECURSE LAB04_FILES "Lab04/*.cpp" "Lab04/*.h")
