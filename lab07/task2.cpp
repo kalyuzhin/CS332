@@ -1,10 +1,12 @@
-#include "task2.h"
+﻿#include "task2.h"
 #include "../lab06/lab.h"
+#include <functional>
+#include <map>
 
 using std::vector;
 using std::string;
 
-namespace lab7{
+namespace lab7 {
     static Mesh buildRevolution(const vector<Vec3>& gen, char axis, int subdivisions) {
         Mesh mesh;
         if (gen.size() < 2 || subdivisions < 3) {
@@ -26,13 +28,15 @@ namespace lab7{
                     rotated.x = p.x;
                     rotated.y = p.y * c - p.z * s;
                     rotated.z = p.y * s + p.z * c;
-                } else if (axis == 'Y' || axis == 'y') {
+                }
+                else if (axis == 'Y' || axis == 'y') {
                     float c = std::cos(rad);
                     float s = std::sin(rad);
-                    rotated.x =  p.x * c + p.z * s;
-                    rotated.y =  p.y;
+                    rotated.x = p.x * c + p.z * s;
+                    rotated.y = p.y;
                     rotated.z = -p.x * s + p.z * c;
-                } else {
+                }
+                else {
                     float c = std::cos(rad);
                     float s = std::sin(rad);
                     rotated.x = p.x * c - p.y * s;
@@ -57,6 +61,64 @@ namespace lab7{
         return mesh;
     }
 
+    static float funcPlane(float x, float y) {
+        return 0.0f;
+    }
+
+    static float funcParaboloid(float x, float y) {
+        return (x * x + y * y) / 100.0f;
+    }
+
+    static float funcSaddle(float x, float y) {
+        return (x * x - y * y) / 100.0f;
+    }
+
+    static float funcWave(float x, float y) {
+        return 50.0f * std::sin(std::sqrt(x * x + y * y) * 50.0f);
+    }
+
+    static float funcHill(float x, float y) {
+        return 100.0f * std::exp(-(x * x + y * y) / 2500.0f);
+    }
+
+    static Mesh buildFunctionSurface(std::function<float(float, float)> func,
+        float x0, float x1, float y0, float y1,
+        int subdivisionsX, int subdivisionsY) {
+        Mesh mesh;
+
+        if (subdivisionsX < 1 || subdivisionsY < 1) {
+            return mesh;
+        }
+
+        float stepX = (x1 - x0) / subdivisionsX;
+        float stepY = (y1 - y0) / subdivisionsY;
+
+        for (int i = 0; i <= subdivisionsY; ++i) {
+            float y = y0 + i * stepY;
+            for (int j = 0; j <= subdivisionsX; ++j) {
+                float x = x0 + j * stepX;
+                float z = func(x, y);
+                mesh.V.push_back({ x, y, z });
+            }
+        }
+
+        int pointsPerRow = subdivisionsX + 1;
+        for (int i = 0; i < subdivisionsY; ++i) {
+            for (int j = 0; j < subdivisionsX; ++j) {
+                int v0 = i * pointsPerRow + j;
+                int v1 = i * pointsPerRow + (j + 1);
+                int v2 = (i + 1) * pointsPerRow + (j + 1);
+                int v3 = (i + 1) * pointsPerRow + j;
+
+                Face f;
+                f.idx = { v0, v1, v2, v3 };
+                mesh.F.push_back(std::move(f));
+            }
+        }
+
+        return mesh;
+    }
+
     int run() {
         const int W = 1200, H = 800;
         if (!glfwInit()) return 1;
@@ -66,7 +128,7 @@ namespace lab7{
         glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
         glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
 #endif
-        GLFWwindow* win = glfwCreateWindow(W, H, "Surface of Revolution", nullptr, nullptr);
+        GLFWwindow* win = glfwCreateWindow(W, H, "Surface of Revolution & Function Graph", nullptr, nullptr);
         if (!win) {
             glfwTerminate();
             return 1;
@@ -88,13 +150,13 @@ namespace lab7{
         bool showAxes = true;
 
         ImGui::FileBrowser saveFileDialog(
-                ImGuiFileBrowserFlags_SelectDirectory |
-                ImGuiFileBrowserFlags_CloseOnEsc |
-                ImGuiFileBrowserFlags_ConfirmOnEnter
+            ImGuiFileBrowserFlags_SelectDirectory |
+            ImGuiFileBrowserFlags_CloseOnEsc |
+            ImGuiFileBrowserFlags_ConfirmOnEnter
         );
         ImGui::FileBrowser openFileDialog(
-                ImGuiFileBrowserFlags_CloseOnEsc |
-                ImGuiFileBrowserFlags_ConfirmOnEnter
+            ImGuiFileBrowserFlags_CloseOnEsc |
+            ImGuiFileBrowserFlags_ConfirmOnEnter
         );
         openFileDialog.SetTypeFilters({ ".obj" });
 
@@ -102,6 +164,12 @@ namespace lab7{
         static int subdivisions = 12;
         static int axisIndex = 2;
         const char* axisNames[] = { "X", "Y", "Z" };
+
+        static int funcIndex = 0;
+        const char* funcNames[] = { "Plane z=0", "Paraboloid", "Saddle", "Wave", "Hill" };
+        static float x0 = -100.0f, x1 = 100.0f;
+        static float y0 = -100.0f, y1 = 100.0f;
+        static int subdivX = 10, subdivY = 10;
 
         while (!glfwWindowShouldClose(win)) {
             glfwPollEvents();
@@ -125,23 +193,24 @@ namespace lab7{
             if (!S.proj.perspective) {
                 ImGui::SliderFloat("Axon X", &S.proj.ax, 0.f, 90.f);
                 ImGui::SliderFloat("Axon Y", &S.proj.ay, 0.f, 90.f);
-            } else {
+            }
+            else {
                 ImGui::SliderFloat("Focus f", &S.proj.f, 100.f, 2000.f);
             }
             ImGui::SeparatorText("Rotate around center");
             if (ImGui::Button("X +5")) {
                 Vec3 Cw = worldCenter(S.base, S.modelMat);
-                worldRotateAroundAxisThrough(S, Cw, {1, 0, 0}, +5.f);
+                worldRotateAroundAxisThrough(S, Cw, { 1, 0, 0 }, +5.f);
             }
             ImGui::SameLine();
             if (ImGui::Button("Y +5")) {
                 Vec3 Cw = worldCenter(S.base, S.modelMat);
-                worldRotateAroundAxisThrough(S, Cw, {0, 1, 0}, +5.f);
+                worldRotateAroundAxisThrough(S, Cw, { 0, 1, 0 }, +5.f);
             }
             ImGui::SameLine();
             if (ImGui::Button("Z +5")) {
                 Vec3 Cw = worldCenter(S.base, S.modelMat);
-                worldRotateAroundAxisThrough(S, Cw, {0, 0, 1}, +5.f);
+                worldRotateAroundAxisThrough(S, Cw, { 0, 0, 1 }, +5.f);
             }
             ImGui::SeparatorText("Reflect");
             if (ImGui::Button("XY")) worldReflectPlane(S, Mat4::RefXY());
@@ -188,7 +257,8 @@ namespace lab7{
                 if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled)) {
                     ImGui::SetTooltip("Enter filename");
                 }
-            } else {
+            }
+            else {
                 if (ImGui::Button("Save file")) {
                     saveFileDialog.Open();
                 }
@@ -211,8 +281,9 @@ namespace lab7{
             if (ImGui::Button("Add point")) {
                 if (!generatrix.empty()) {
                     generatrix.push_back(generatrix.back());
-                } else {
-                    generatrix.push_back({0.f, 0.f, 0.f});
+                }
+                else {
+                    generatrix.push_back({ 0.f, 0.f, 0.f });
                 }
             }
             ImGui::SameLine();
@@ -227,6 +298,42 @@ namespace lab7{
                     S.base = newMesh;
                     S.modelMat = Mat4::I();
                     string objName = string("Revol@") + axisNames[axisIndex] + string("/") + std::to_string(subdivisions);
+                    S.meshesNames.push_back(objName);
+                    S.meshes.push_back({ PolyKind::UserObj, newMesh });
+                    S.polyIdx = static_cast<int>(S.meshes.size() - 1);
+                }
+            }
+
+            ImGui::SeparatorText("Function Surface z = f(x, y)");
+            ImGui::Combo("Function", &funcIndex, funcNames, IM_ARRAYSIZE(funcNames));
+            ImGui::InputFloat("X min", &x0);
+            ImGui::InputFloat("X max", &x1);
+            ImGui::InputFloat("Y min", &y0);
+            ImGui::InputFloat("Y max", &y1);
+            ImGui::InputInt("Subdivisions X", &subdivX);
+            ImGui::InputInt("Subdivisions Y", &subdivY);
+            if (subdivX < 1) subdivX = 1;
+            if (subdivY < 1) subdivY = 1;
+
+            if (ImGui::Button("Build Function Surface")) {
+                std::function<float(float, float)> selectedFunc;
+
+                switch (funcIndex) {
+                case 0: selectedFunc = funcPlane; break;
+                case 1: selectedFunc = funcParaboloid; break;
+                case 2: selectedFunc = funcSaddle; break;
+                case 3: selectedFunc = funcWave; break;
+                case 4: selectedFunc = funcHill; break;
+                default: selectedFunc = funcPlane;
+                }
+
+                Mesh newMesh = buildFunctionSurface(selectedFunc, x0, x1, y0, y1, subdivX, subdivY);
+                if (!newMesh.V.empty()) {
+                    S.kind = PolyKind::UserObj;
+                    S.base = newMesh;
+                    S.modelMat = Mat4::I();
+                    string objName = string("Func@") + funcNames[funcIndex] +
+                        string("/") + std::to_string(subdivX) + "x" + std::to_string(subdivY);
                     S.meshesNames.push_back(objName);
                     S.meshes.push_back({ PolyKind::UserObj, newMesh });
                     S.polyIdx = static_cast<int>(S.meshes.size() - 1);
