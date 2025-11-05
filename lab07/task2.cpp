@@ -74,11 +74,11 @@ namespace lab7 {
     }
 
     static float funcWave(float x, float y) {
-        return 50.0f * std::sin(std::sqrt(x * x + y * y) * 50.0f);
+        return 25.0f * std::sin(std::sqrt(x * x + y * y) / 25.0f);
     }
 
     static float funcHill(float x, float y) {
-        return 100.0f * std::exp(-(x * x + y * y) / 2500.0f);
+        return 200.0f * std::exp(-(x * x + y * y) / 10000.0f);
     }
 
     static Mesh buildFunctionSurface(std::function<float(float, float)> func,
@@ -167,9 +167,9 @@ namespace lab7 {
 
         static int funcIndex = 0;
         const char* funcNames[] = { "Plane z=0", "Paraboloid", "Saddle", "Wave", "Hill" };
-        static float x0 = -100.0f, x1 = 100.0f;
-        static float y0 = -100.0f, y1 = 100.0f;
-        static int subdivX = 10, subdivY = 10;
+        static float x0 = -200.0f, x1 = 200.0f;
+        static float y0 = -200.0f, y1 = 200.0f;
+        static int subdivX = 20, subdivY = 20;
 
         while (!glfwWindowShouldClose(win)) {
             glfwPollEvents();
