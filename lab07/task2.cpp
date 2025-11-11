@@ -197,6 +197,19 @@ namespace lab7 {
             else {
                 ImGui::SliderFloat("Focus f", &S.proj.f, 100.f, 2000.f);
             }
+
+            // New UI (same as in lab.h): back-face culling & view vector control
+            ImGui::SeparatorText("Back-face culling");
+            ImGui::Checkbox("Back-face culling", &S.backfaceCull);
+            ImGui::Checkbox("Show face normals", &S.showFaceNormals);
+            ImGui::Checkbox("Use custom view vector", &S.useCustomView);
+            if (S.useCustomView) {
+                float vv[3] = { S.viewVec.x, S.viewVec.y, S.viewVec.z };
+                if (ImGui::InputFloat3("View vector", vv)) {
+                    S.viewVec.x = vv[0]; S.viewVec.y = vv[1]; S.viewVec.z = vv[2];
+                }
+            }
+
             ImGui::SeparatorText("Rotate around center");
             if (ImGui::Button("X +5")) {
                 Vec3 Cw = worldCenter(S.base, S.modelMat);
@@ -359,7 +372,8 @@ namespace lab7 {
             S.proj.cx = ImGui::GetIO().DisplaySize.x * 0.5f;
             S.proj.cy = ImGui::GetIO().DisplaySize.y * 0.5f;
             if (showAxes) drawAxes(S.proj, 250.f);
-            drawWireImGui(S.base, S.modelMat, S.proj, IM_COL32(20, 20, 20, 255), 1.8f);
+            // changed: pass whole AppState so draw routine can cull using S settings
+            drawWireImGui(S.base, S.modelMat, S, IM_COL32(20, 20, 20, 255), 1.8f);
             int fbw, fbh;
             glfwGetFramebufferSize(win, &fbw, &fbh);
             ImGui::Render();
