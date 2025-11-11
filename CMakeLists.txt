@@ -6,15 +6,10 @@ set(CMAKE_CXX_STANDARD 20)
 set(SOURCES
     main.cpp
     provider.h
-        lab06/lab.h
-        lab07/task2.cpp
-        lab07/task2.h
 )
 
-file(GLOB_RECURSE LAB04_FILES "Lab04/*.cpp" "Lab04/*.h")
-list(APPEND SOURCES ${LAB04_FILES})
-file(GLOB_RECURSE LAB05_FILES "Lab05/*.cpp" "Lab05/*.h")
-list(APPEND SOURCES ${LAB05_FILES})
+file(GLOB_RECURSE INDIV_FILES "indiv/*.cpp" "indiv/*.h")
+list(APPEND SOURCES ${INDIV_FILES})
 message(STATUS "Sources: ${SOURCES}")
 
 add_executable(CS332 ${SOURCES})

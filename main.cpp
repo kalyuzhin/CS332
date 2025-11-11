@@ -1,7 +1,8 @@
-#include "lab07/task2.h"
+#include "indiv/indiv.h"
 
 int main() {
-    lab7::run();
+    //lab7::run();
+	Indiv::run();
 
 	return 0;
 }
