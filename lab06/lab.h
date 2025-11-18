@@ -407,6 +407,12 @@ struct AppState {
     Vec3 P1{200, 0, 0};
     char axisSel = 'X';
 
+    // new fields for back-face culling & view vector
+    bool backfaceCull = true;
+    bool showFaceNormals = false;
+    bool useCustomView = false;
+    Vec3 viewVec{0.f, 0.f, 1.f};
+
     vector<const char*> getMeshNamesForImGui() {
         vector<const char*> result;
         for (const auto& name : meshesNames) {
@@ -452,18 +458,90 @@ static void drawAxes(const Projector &proj, float len = 250.f) {
     ImGui::GetForegroundDrawList()->AddText(ImVec2((float) zx, (float) zy), IM_COL32(0, 128, 255, 255), "Z");
 }
 
+// Modified: add AppState param so we can compute view vector & culling behavior
 static void
-drawWireImGui(const Mesh &base, const Mat4 &model, const Projector &proj, ImU32 color = IM_COL32(20, 20, 20, 255),
+drawWireImGui(const Mesh &base, const Mat4 &model, const AppState &S, ImU32 color = IM_COL32(20, 20, 20, 255),
               float thick = 1.8f) {
     ImDrawList *dl = ImGui::GetBackgroundDrawList();
+
+    // compute view direction in world coordinates
+    Vec3 viewDirWorld{0,0,1};
+    if (S.proj.perspective) {
+        // camera positioned at (0,0,-f) in world coordinates according to projection formula
+        Vec3 cam{0.f, 0.f, -S.proj.f};
+        // For perspective we will compute view direction per-face (cam - faceCentroid)
+        // set a sentinel: if using custom view vector, obey it instead
+    } else {
+        // for parallel (axonometric) projection the viewing direction is the rotated (0,0,1)
+        Vec4 v{0.f, 0.f, 1.f, 0.f};
+        Mat4 R = Mat4::Rx(S.proj.ax) * Mat4::Ry(S.proj.ay);
+        Vec4 r = v * R;
+        viewDirWorld = norm(Vec3{r.x, r.y, r.z});
+    }
+
+    Vec3 meshC_object = centroid(base);          // centroid(base) возвращает в object space
+    Vec3 meshC = xform(meshC_object, model);
+    const float EPS = 1e-6f;
+
     for (const auto &f: base.F) {
-        for (size_t i = 0; i < f.idx.size(); ++i) {
-            int i0 = f.idx[i], i1 = f.idx[(i + 1) % f.idx.size()];
-            Vec3 a = xform({base.V[i0].x, base.V[i0].y, base.V[i0].z}, model);
-            Vec3 b = xform({base.V[i1].x, base.V[i1].y, base.V[i1].z}, model);
-            int x0, y0, x1, y1;
-            if (proj.project(a, x0, y0) && proj.project(b, x1, y1))
-                dl->AddLine(ImVec2((float) x0, (float) y0), ImVec2((float) x1, (float) y1), color, thick);
+        if (f.idx.size() < 3) continue;
+
+        // transformed vertices (world coordinates)
+        Vec3 a = xform({base.V[f.idx[0]].x, base.V[f.idx[0]].y, base.V[f.idx[0]].z}, model);
+        Vec3 b = xform({base.V[f.idx[1]].x, base.V[f.idx[1]].y, base.V[f.idx[1]].z}, model);
+        Vec3 c = xform({base.V[f.idx[2]].x, base.V[f.idx[2]].y, base.V[f.idx[2]].z}, model);
+
+        // face normal (using first three vertices)
+        Vec3 n = norm(cross(b - a, c - a));
+
+        // face centroid (world)
+        Vec3 fc{0,0,0};
+        for (int vidx : f.idx) {
+            Vec3 v = xform({base.V[vidx].x, base.V[vidx].y, base.V[vidx].z}, model);
+            fc.x += v.x; fc.y += v.y; fc.z += v.z;
+        }
+        fc = fc * (1.f / (float) f.idx.size());
+
+        Vec3 faceV = fc - meshC;
+
+        if (dot(n, faceV) < 0.f) {
+            n = n * -1.f;
+        }
+
+        // determine view direction to use for culling
+        Vec3 viewDir;
+        if (S.useCustomView) {
+            viewDir = norm(S.viewVec);
+        } else if (S.proj.perspective) {
+            Vec3 cam{0.f, 0.f, -S.proj.f};
+            viewDir = norm(cam - fc);
+        } else {
+            viewDir = viewDirWorld;
+        }
+
+        // front-facing test: if dot(normal, viewDir) > 0 => face faces camera
+        bool frontFacing = dot(n, viewDir) > EPS;
+
+        if (!S.backfaceCull || frontFacing) {
+            // draw polygon edges
+            for (size_t i = 0; i < f.idx.size(); ++i) {
+                int i0 = f.idx[i], i1 = f.idx[(i + 1) % f.idx.size()];
+                Vec3 va = xform({base.V[i0].x, base.V[i0].y, base.V[i0].z}, model);
+                Vec3 vb = xform({base.V[i1].x, base.V[i1].y, base.V[i1].z}, model);
+                int x0, y0, x1, y1;
+                if (S.proj.project(va, x0, y0) && S.proj.project(vb, x1, y1))
+                    dl->AddLine(ImVec2((float) x0, (float) y0), ImVec2((float) x1, (float) y1), color, thick);
+            }
+        }
+
+        // optionally draw face normal as a short line from centroid
+        if (S.showFaceNormals) {
+            Vec3 nstart = fc;
+            Vec3 nend = fc + n * 30.f; // scale for visibility
+            int xs, ys, xe, ye;
+            if (S.proj.project(nstart, xs, ys) && S.proj.project(nend, xe, ye)) {
+                dl->AddLine(ImVec2((float) xs, (float) ys), ImVec2((float) xe, (float) ye), IM_COL32(200, 30, 30, 255), 1.2f);
+            }
         }
     }
 }
@@ -732,26 +810,6 @@ int run() {
             pair<PolyKind, Mesh> meshPair = S.meshes[S.polyIdx];
             S.kind = meshPair.first;
             S.base = meshPair.second;
-            /*if (polyIdx == 0) {
-                S.kind = PolyKind::Tetra;
-                S.base = makeTetra(150.f);
-            }
-            if (polyIdx == 1) {
-                S.kind = PolyKind::Cube;
-                S.base = makeCube(150.f);
-            }
-            if (polyIdx == 2) {
-                S.kind = PolyKind::Octa;
-                S.base = makeOcta(150.f);
-            }
-            if (polyIdx == 3) {
-                S.kind = PolyKind::Ico;
-                S.base = makeIcosa(150.f);
-            }
-            if (polyIdx == 4) {
-                S.kind = PolyKind::Dode;
-                S.base = makeDodeca(150.f);
-            }*/
         }
         ImGui::Checkbox("Perspective", &S.proj.perspective);
         ImGui::Checkbox("Show axes", &showAxes);
@@ -760,6 +818,19 @@ int run() {
             ImGui::SliderFloat("Axon X", &S.proj.ax, 0.f, 90.f);
             ImGui::SliderFloat("Axon Y", &S.proj.ay, 0.f, 90.f);
         } else { ImGui::SliderFloat("Focus f", &S.proj.f, 100.f, 2000.f); }
+
+        // New UI: back-face culling and view vector
+        ImGui::SeparatorText("Back-face culling");
+        ImGui::Checkbox("Back-face culling", &S.backfaceCull);
+        ImGui::Checkbox("Show face normals", &S.showFaceNormals);
+        ImGui::Checkbox("Use custom view vector", &S.useCustomView);
+        if (S.useCustomView) {
+            float vv[3] = {S.viewVec.x, S.viewVec.y, S.viewVec.z};
+            if (ImGui::InputFloat3("View vector", vv)) {
+                S.viewVec.x = vv[0]; S.viewVec.y = vv[1]; S.viewVec.z = vv[2];
+            }
+        }
+
         ImGui::SeparatorText("Rotate around center");
         if (ImGui::Button("X +5")) {
             Vec3 Cw = worldCenter(S.base, S.modelMat);
@@ -852,7 +923,8 @@ int run() {
         S.proj.cx = ImGui::GetIO().DisplaySize.x * 0.5f;
         S.proj.cy = ImGui::GetIO().DisplaySize.y * 0.5f;
         if (showAxes) drawAxes(S.proj, 250.f);
-        drawWireImGui(S.base, S.modelMat, S.proj, IM_COL32(20, 20, 20, 255), 1.8f);
+        // changed: pass whole AppState so draw routine can cull using S settings
+        drawWireImGui(S.base, S.modelMat, S, IM_COL32(20, 20, 20, 255), 1.8f);
         int fbw, fbh;
         glfwGetFramebufferSize(win, &fbw, &fbh);
         ImGui::Render();
