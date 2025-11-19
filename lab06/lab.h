@@ -407,11 +407,16 @@ struct AppState {
     Vec3 P1{200, 0, 0};
     char axisSel = 'X';
 
-    // new fields for back-face culling & view vector
     bool backfaceCull = true;
     bool showFaceNormals = false;
     bool useCustomView = false;
     Vec3 viewVec{0.f, 0.f, 1.f};
+
+    int shadingMode = 1;
+    Vec3 lightPos{ 300.f, 300.f, 300.f };
+    ImVec4 objectColor{ 0.4f, 0.7f, 0.9f, 1.0f };
+    float ambientK = 0.2f;
+    int toonLevels = 3;
 
     vector<const char*> getMeshNamesForImGui() {
         vector<const char*> result;
@@ -458,43 +463,167 @@ static void drawAxes(const Projector &proj, float len = 250.f) {
     ImGui::GetForegroundDrawList()->AddText(ImVec2((float) zx, (float) zy), IM_COL32(0, 128, 255, 255), "Z");
 }
 
-// Modified: add AppState param so we can compute view vector & culling behavior
+struct ShadedVertex {
+    int x{}, y{};     
+    Vec3 worldPos{};  
+    Vec3 normal{};    
+    float diffuse{};  
+};
+
+static inline ImU32 shadeColor(const AppState& S, float intensity) {
+    intensity = std::clamp(intensity, 0.0f, 1.0f);
+    float r = S.objectColor.x * intensity;
+    float g = S.objectColor.y * intensity;
+    float b = S.objectColor.z * intensity;
+    r = std::clamp(r, 0.0f, 1.0f);
+    g = std::clamp(g, 0.0f, 1.0f);
+    b = std::clamp(b, 0.0f, 1.0f);
+    return IM_COL32(
+        (int)std::lround(r * 255.0f),
+        (int)std::lround(g * 255.0f),
+        (int)std::lround(b * 255.0f),
+        255);
+}
+
+static inline float quantizeToon(float x, int levels) {
+    if (levels <= 1) return x;
+    x = std::clamp(x, 0.0f, 0.9999f);
+    float scaled = x * (float)levels;
+    int bucket = (int)scaled;
+    float step = 1.0f / (float)(levels - 1);
+    return (float)bucket * step;
+}
+
+static void rasterTriangleGouraud(ImDrawList* dl,
+    const ShadedVertex& v0,
+    const ShadedVertex& v1,
+    const ShadedVertex& v2,
+    const AppState& S) {
+    ImVec2 disp = ImGui::GetIO().DisplaySize;
+    int screenW = (int)disp.x;
+    int screenH = (int)disp.y;
+
+    float x0 = (float)v0.x, y0 = (float)v0.y;
+    float x1 = (float)v1.x, y1 = (float)v1.y;
+    float x2 = (float)v2.x, y2 = (float)v2.y;
+
+    float minXf = std::min({ x0, x1, x2 });
+    float maxXf = std::max({ x0, x1, x2 });
+    float minYf = std::min({ y0, y1, y2 });
+    float maxYf = std::max({ y0, y1, y2 });
+
+    int minX = std::max(0, (int)std::floor(minXf));
+    int maxX = std::min(screenW - 1, (int)std::ceil(maxXf));
+    int minY = std::max(0, (int)std::floor(minYf));
+    int maxY = std::min(screenH - 1, (int)std::ceil(maxYf));
+
+    float denom = ((y1 - y2) * (x0 - x2) + (x2 - x1) * (y0 - y2));
+    if (std::fabs(denom) < 1e-6f) return;
+    float invDen = 1.0f / denom;
+
+    for (int y = minY; y <= maxY; ++y) {
+        for (int x = minX; x <= maxX; ++x) {
+            float xf = (float)x + 0.5f;
+            float yf = (float)y + 0.5f;
+
+            float w0 = ((y1 - y2) * (xf - x2) + (x2 - x1) * (yf - y2)) * invDen;
+            float w1 = ((y2 - y0) * (xf - x2) + (x0 - x2) * (yf - y2)) * invDen;
+            float w2 = 1.0f - w0 - w1;
+
+            if (w0 < 0.0f || w1 < 0.0f || w2 < 0.0f) continue;
+
+            float diff = w0 * v0.diffuse + w1 * v1.diffuse + w2 * v2.diffuse;
+            float I = S.ambientK + (1.0f - S.ambientK) * diff;
+            ImU32 col = shadeColor(S, I);
+
+            dl->AddRectFilled(ImVec2((float)x, (float)y),
+                ImVec2((float)x + 1.0f, (float)y + 1.0f),
+                col);
+        }
+    }
+}
+
+static void rasterTrianglePhongToon(ImDrawList* dl,
+    const ShadedVertex& v0,
+    const ShadedVertex& v1,
+    const ShadedVertex& v2,
+    const AppState& S) {
+    ImVec2 disp = ImGui::GetIO().DisplaySize;
+    int screenW = (int)disp.x;
+    int screenH = (int)disp.y;
+
+    float x0 = (float)v0.x, y0 = (float)v0.y;
+    float x1 = (float)v1.x, y1 = (float)v1.y;
+    float x2 = (float)v2.x, y2 = (float)v2.y;
+
+    float minXf = std::min({ x0, x1, x2 });
+    float maxXf = std::max({ x0, x1, x2 });
+    float minYf = std::min({ y0, y1, y2 });
+    float maxYf = std::max({ y0, y1, y2 });
+
+    int minX = std::max(0, (int)std::floor(minXf));
+    int maxX = std::min(screenW - 1, (int)std::ceil(maxXf));
+    int minY = std::max(0, (int)std::floor(minYf));
+    int maxY = std::min(screenH - 1, (int)std::ceil(maxYf));
+
+    float denom = ((y1 - y2) * (x0 - x2) + (x2 - x1) * (y0 - y2));
+    if (std::fabs(denom) < 1e-6f) return;
+    float invDen = 1.0f / denom;
+
+    for (int y = minY; y <= maxY; ++y) {
+        for (int x = minX; x <= maxX; ++x) {
+            float xf = (float)x + 0.5f;
+            float yf = (float)y + 0.5f;
+
+            float w0 = ((y1 - y2) * (xf - x2) + (x2 - x1) * (yf - y2)) * invDen;
+            float w1 = ((y2 - y0) * (xf - x2) + (x0 - x2) * (yf - y2)) * invDen;
+            float w2 = 1.0f - w0 - w1;
+
+            if (w0 < 0.0f || w1 < 0.0f || w2 < 0.0f) continue;
+            Vec3 P = v0.worldPos * w0 + v1.worldPos * w1 + v2.worldPos * w2;
+            Vec3 N = norm(v0.normal * w0 + v1.normal * w1 + v2.normal * w2);
+
+            Vec3 L = norm(S.lightPos - P);
+            float diff = std::max(0.0f, dot(N, L));
+
+            float toon = quantizeToon(diff, S.toonLevels);
+            float I = S.ambientK + (1.0f - S.ambientK) * toon;
+
+            ImU32 col = shadeColor(S, I);
+            dl->AddRectFilled(ImVec2((float)x, (float)y),
+                ImVec2((float)x + 1.0f, (float)y + 1.0f),
+                col);
+        }
+    }
+}
+
+
+
 static void
 drawWireImGui(const Mesh &base, const Mat4 &model, const AppState &S, ImU32 color = IM_COL32(20, 20, 20, 255),
               float thick = 1.8f) {
     ImDrawList *dl = ImGui::GetBackgroundDrawList();
-
-    // compute view direction in world coordinates
     Vec3 viewDirWorld{0,0,1};
     if (S.proj.perspective) {
-        // camera positioned at (0,0,-f) in world coordinates according to projection formula
         Vec3 cam{0.f, 0.f, -S.proj.f};
-        // For perspective we will compute view direction per-face (cam - faceCentroid)
-        // set a sentinel: if using custom view vector, obey it instead
     } else {
-        // for parallel (axonometric) projection the viewing direction is the rotated (0,0,1)
         Vec4 v{0.f, 0.f, 1.f, 0.f};
         Mat4 R = Mat4::Rx(S.proj.ax) * Mat4::Ry(S.proj.ay);
         Vec4 r = v * R;
         viewDirWorld = norm(Vec3{r.x, r.y, r.z});
     }
 
-    Vec3 meshC_object = centroid(base);          // centroid(base) возвращает в object space
+    Vec3 meshC_object = centroid(base);   
     Vec3 meshC = xform(meshC_object, model);
     const float EPS = 1e-6f;
 
     for (const auto &f: base.F) {
         if (f.idx.size() < 3) continue;
 
-        // transformed vertices (world coordinates)
         Vec3 a = xform({base.V[f.idx[0]].x, base.V[f.idx[0]].y, base.V[f.idx[0]].z}, model);
         Vec3 b = xform({base.V[f.idx[1]].x, base.V[f.idx[1]].y, base.V[f.idx[1]].z}, model);
         Vec3 c = xform({base.V[f.idx[2]].x, base.V[f.idx[2]].y, base.V[f.idx[2]].z}, model);
-
-        // face normal (using first three vertices)
         Vec3 n = norm(cross(b - a, c - a));
-
-        // face centroid (world)
         Vec3 fc{0,0,0};
         for (int vidx : f.idx) {
             Vec3 v = xform({base.V[vidx].x, base.V[vidx].y, base.V[vidx].z}, model);
@@ -508,7 +637,6 @@ drawWireImGui(const Mesh &base, const Mat4 &model, const AppState &S, ImU32 colo
             n = n * -1.f;
         }
 
-        // determine view direction to use for culling
         Vec3 viewDir;
         if (S.useCustomView) {
             viewDir = norm(S.viewVec);
@@ -519,11 +647,9 @@ drawWireImGui(const Mesh &base, const Mat4 &model, const AppState &S, ImU32 colo
             viewDir = viewDirWorld;
         }
 
-        // front-facing test: if dot(normal, viewDir) > 0 => face faces camera
         bool frontFacing = dot(n, viewDir) > EPS;
 
         if (!S.backfaceCull || frontFacing) {
-            // draw polygon edges
             for (size_t i = 0; i < f.idx.size(); ++i) {
                 int i0 = f.idx[i], i1 = f.idx[(i + 1) % f.idx.size()];
                 Vec3 va = xform({base.V[i0].x, base.V[i0].y, base.V[i0].z}, model);
@@ -534,10 +660,9 @@ drawWireImGui(const Mesh &base, const Mat4 &model, const AppState &S, ImU32 colo
             }
         }
 
-        // optionally draw face normal as a short line from centroid
         if (S.showFaceNormals) {
             Vec3 nstart = fc;
-            Vec3 nend = fc + n * 30.f; // scale for visibility
+            Vec3 nend = fc + n * 30.f;
             int xs, ys, xe, ye;
             if (S.proj.project(nstart, xs, ys) && S.proj.project(nend, xe, ye)) {
                 dl->AddLine(ImVec2((float) xs, (float) ys), ImVec2((float) xe, (float) ye), IM_COL32(200, 30, 30, 255), 1.2f);
@@ -545,6 +670,114 @@ drawWireImGui(const Mesh &base, const Mat4 &model, const AppState &S, ImU32 colo
         }
     }
 }
+
+static void drawShadedImGui(const Mesh& base, const Mat4& model, const AppState& S) {
+    ImDrawList* dl = ImGui::GetBackgroundDrawList();
+    if (S.shadingMode == 0) {
+        drawWireImGui(base, model, S, IM_COL32(20, 20, 20, 255), 1.8f);
+        return;
+    }
+
+    int nV = (int)base.V.size();
+    if (nV == 0) return;
+
+    vector<Vec3> worldPos(nV);
+    vector<Vec3> vNormals(nV, Vec3{ 0, 0, 0 });
+    vector<int> sx(nV), sy(nV);
+    vector<bool> visible(nV, false);
+
+    for (int i = 0; i < nV; ++i) {
+        const Vertex& v = base.V[i];
+        worldPos[i] = xform({ v.x, v.y, v.z }, model);
+        visible[i] = S.proj.project(worldPos[i], sx[i], sy[i]);
+    }
+
+    for (const auto& f : base.F) {
+        if (f.idx.size() < 3) continue;
+        int i0 = f.idx[0], i1 = f.idx[1], i2 = f.idx[2];
+        Vec3 a = worldPos[i0];
+        Vec3 b = worldPos[i1];
+        Vec3 c = worldPos[i2];
+        Vec3 fn = norm(cross(b - a, c - a));
+        for (int vidx : f.idx) {
+            vNormals[vidx] = vNormals[vidx] + fn;
+        }
+    }
+    for (int i = 0; i < nV; ++i) {
+        if (vlen(vNormals[i]) > 1e-6f) vNormals[i] = norm(vNormals[i]);
+        else vNormals[i] = Vec3{ 0, 0, 1 };
+    }
+    vector<float> vDiffuse(nV, 0.0f);
+    if (S.shadingMode == 1) { 
+        for (int i = 0; i < nV; ++i) {
+            Vec3 L = norm(S.lightPos - worldPos[i]);
+            float diff = std::max(0.0f, dot(vNormals[i], L));
+            vDiffuse[i] = diff;
+        }
+    }
+
+    Vec3 meshC_object = centroid(base);
+    Vec3 meshC = xform(meshC_object, model);
+
+    Vec3 viewDirWorld{ 0, 0, 1 };
+    if (!S.proj.perspective) {
+        Vec4 v{ 0.f, 0.f, 1.f, 0.f };
+        Mat4 R = Mat4::Rx(S.proj.ax) * Mat4::Ry(S.proj.ay);
+        Vec4 r = v * R;
+        viewDirWorld = norm(Vec3{ r.x, r.y, r.z });
+    }
+    const float EPS = 1e-6f;
+
+    for (const auto& f : base.F) {
+        if (f.idx.size() < 3) continue;
+
+        Vec3 fc{ 0, 0, 0 };
+        for (int vidx : f.idx) {
+            fc = fc + worldPos[vidx];
+        }
+        fc = fc * (1.0f / (float)f.idx.size());
+
+        Vec3 a = worldPos[f.idx[0]];
+        Vec3 b = worldPos[f.idx[1]];
+        Vec3 c = worldPos[f.idx[2]];
+        Vec3 n = norm(cross(b - a, c - a));
+
+        Vec3 faceV = fc - meshC;
+        if (dot(n, faceV) < 0.0f) n = n * -1.0f;
+
+        Vec3 viewDir;
+        if (S.useCustomView) {
+            viewDir = norm(S.viewVec);
+        }
+        else if (S.proj.perspective) {
+            Vec3 cam{ 0.f, 0.f, -S.proj.f };
+            viewDir = norm(cam - fc);
+        }
+        else {
+            viewDir = viewDirWorld;
+        }
+
+        bool frontFacing = dot(n, viewDir) > EPS;
+        if (S.backfaceCull && !frontFacing) continue;
+        for (size_t t = 1; t + 1 < f.idx.size(); ++t) {
+            int i0 = f.idx[0];
+            int i1 = f.idx[t];
+            int i2 = f.idx[t + 1];
+
+            if (!visible[i0] || !visible[i1] || !visible[i2]) continue;
+
+            ShadedVertex sv0{ sx[i0], sy[i0], worldPos[i0], vNormals[i0], vDiffuse[i0] };
+            ShadedVertex sv1{ sx[i1], sy[i1], worldPos[i1], vNormals[i1], vDiffuse[i1] };
+            ShadedVertex sv2{ sx[i2], sy[i2], worldPos[i2], vNormals[i2], vDiffuse[i2] };
+
+            if (S.shadingMode == 1)
+                rasterTriangleGouraud(dl, sv0, sv1, sv2, S);
+            else
+                rasterTrianglePhongToon(dl, sv0, sv1, sv2, S);
+        }
+    }
+}
+
 
 static bool openObject(const string& filename, AppState& appState, Mesh& mesh) {
     mesh.V.clear();
@@ -831,6 +1064,22 @@ int run() {
             }
         }
 
+
+        ImGui::SeparatorText("Lighting");
+        const char* shadingItems[] = { "Wireframe", "Gouraud (Lambert)", "Phong toon" };
+        ImGui::Combo("Shading", &S.shadingMode, shadingItems, IM_ARRAYSIZE(shadingItems));
+
+        float lightPosArr[3] = { S.lightPos.x, S.lightPos.y, S.lightPos.z };
+        if (ImGui::InputFloat3("Light position", lightPosArr)) {
+            S.lightPos.x = lightPosArr[0];
+            S.lightPos.y = lightPosArr[1];
+            S.lightPos.z = lightPosArr[2];
+        }
+
+        ImGui::ColorEdit3("Object color", &S.objectColor.x);
+        ImGui::SliderFloat("Ambient", &S.ambientK, 0.0f, 1.0f);
+        ImGui::SliderInt("Toon levels", &S.toonLevels, 2, 6);
+
         ImGui::SeparatorText("Rotate around center");
         if (ImGui::Button("X +5")) {
             Vec3 Cw = worldCenter(S.base, S.modelMat);
@@ -923,8 +1172,12 @@ int run() {
         S.proj.cx = ImGui::GetIO().DisplaySize.x * 0.5f;
         S.proj.cy = ImGui::GetIO().DisplaySize.y * 0.5f;
         if (showAxes) drawAxes(S.proj, 250.f);
-        // changed: pass whole AppState so draw routine can cull using S settings
-        drawWireImGui(S.base, S.modelMat, S, IM_COL32(20, 20, 20, 255), 1.8f);
+        if (S.shadingMode == 0) {
+            drawWireImGui(S.base, S.modelMat, S, IM_COL32(20, 20, 20, 255), 1.8f);
+        }
+        else {
+            drawShadedImGui(S.base, S.modelMat, S);
+        }
         int fbw, fbh;
         glfwGetFramebufferSize(win, &fbw, &fbh);
         ImGui::Render();

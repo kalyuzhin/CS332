@@ -198,7 +198,6 @@ namespace lab7 {
                 ImGui::SliderFloat("Focus f", &S.proj.f, 100.f, 2000.f);
             }
 
-            // New UI (same as in lab.h): back-face culling & view vector control
             ImGui::SeparatorText("Back-face culling");
             ImGui::Checkbox("Back-face culling", &S.backfaceCull);
             ImGui::Checkbox("Show face normals", &S.showFaceNormals);
@@ -209,6 +208,21 @@ namespace lab7 {
                     S.viewVec.x = vv[0]; S.viewVec.y = vv[1]; S.viewVec.z = vv[2];
                 }
             }
+
+            ImGui::SeparatorText("Lighting");
+            const char* shadingItems[] = { "Wireframe", "Gouraud (Lambert)", "Phong toon" };
+            ImGui::Combo("Shading", &S.shadingMode, shadingItems, IM_ARRAYSIZE(shadingItems));
+
+            float lightPosArr[3] = { S.lightPos.x, S.lightPos.y, S.lightPos.z };
+            if (ImGui::InputFloat3("Light position", lightPosArr)) {
+                S.lightPos.x = lightPosArr[0];
+                S.lightPos.y = lightPosArr[1];
+                S.lightPos.z = lightPosArr[2];
+            }
+
+            ImGui::ColorEdit3("Object color", &S.objectColor.x);
+            ImGui::SliderFloat("Ambient", &S.ambientK, 0.0f, 1.0f);
+            ImGui::SliderInt("Toon levels", &S.toonLevels, 2, 6);
 
             ImGui::SeparatorText("Rotate around center");
             if (ImGui::Button("X +5")) {
@@ -372,8 +386,12 @@ namespace lab7 {
             S.proj.cx = ImGui::GetIO().DisplaySize.x * 0.5f;
             S.proj.cy = ImGui::GetIO().DisplaySize.y * 0.5f;
             if (showAxes) drawAxes(S.proj, 250.f);
-            // changed: pass whole AppState so draw routine can cull using S settings
-            drawWireImGui(S.base, S.modelMat, S, IM_COL32(20, 20, 20, 255), 1.8f);
+            if (S.shadingMode == 0) {
+                drawWireImGui(S.base, S.modelMat, S, IM_COL32(20, 20, 20, 255), 1.8f);
+            }
+            else {
+                drawShadedImGui(S.base, S.modelMat, S);
+            }
             int fbw, fbh;
             glfwGetFramebufferSize(win, &fbw, &fbh);
             ImGui::Render();
