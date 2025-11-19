@@ -1,7 +1,7 @@
-#include "lab07/task2.h"
+#include "lab08/task3.h"
 
 int main() {
-    lab7::run();
+    lab8::run_task3();
 
 	return 0;
 }

@@ -9,6 +9,8 @@ set(SOURCES
         lab06/lab.h
         lab07/task2.cpp
         lab07/task2.h
+        lab08/task3.h
+        lab08/task3.cpp
 )
 
 file(GLOB_RECURSE LAB04_FILES "Lab04/*.cpp" "Lab04/*.h")

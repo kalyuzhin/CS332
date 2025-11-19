@@ -24,7 +24,7 @@ help:
 .PHONY: build
 ## builds project and return a.out file
 build:
-	g++ -std=c++20 main.cpp build/imgui/imgui_draw.cpp build/imgui/imgui.cpp build/imgui/imgui_widgets.cpp build/imgui/imgui_tables.cpp build/imgui/backends/imgui_impl_opengl3.cpp build/imgui/backends/imgui_impl_glfw.cpp -framework OpenGL `pkg-config --cflags --libs opencv4 glfw3` -lglfw -Ibuild/imgui -Ibuild/imgui/backends
+	g++ -std=c++20 main.cpp lab08/task3.cpp build/imgui/imgui_draw.cpp build/imgui/imgui.cpp build/imgui/imgui_widgets.cpp build/imgui/imgui_tables.cpp build/imgui/backends/imgui_impl_opengl3.cpp build/imgui/backends/imgui_impl_glfw.cpp -framework OpenGL `pkg-config --cflags --libs opencv4 glfw3` -lglfw -Ibuild/imgui -Ibuild/imgui/backends
 
 .PHONY: run
 ## runs project
