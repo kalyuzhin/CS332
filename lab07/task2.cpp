@@ -1,13 +1,11 @@
 ﻿#include "task2.h"
-#include "../lab06/lab.h"
-#include <functional>
-#include <map>
+
 
 using std::vector;
 using std::string;
 
 namespace lab7 {
-    static Mesh buildRevolution(const vector<Vec3>& gen, char axis, int subdivisions) {
+    static Mesh buildRevolution(const vector<Vec3> &gen, char axis, int subdivisions) {
         Mesh mesh;
         if (gen.size() < 2 || subdivisions < 3) {
             return mesh;
@@ -17,7 +15,7 @@ namespace lab7 {
         mesh.V.reserve(n * m);
         float stepDeg = 360.0f / static_cast<float>(m);
         for (int i = 0; i < n; ++i) {
-            const Vec3& p = gen[i];
+            const Vec3 &p = gen[i];
             for (int k = 0; k < m; ++k) {
                 float angle = stepDeg * static_cast<float>(k);
                 float rad = deg2rad(angle);
@@ -28,22 +26,20 @@ namespace lab7 {
                     rotated.x = p.x;
                     rotated.y = p.y * c - p.z * s;
                     rotated.z = p.y * s + p.z * c;
-                }
-                else if (axis == 'Y' || axis == 'y') {
+                } else if (axis == 'Y' || axis == 'y') {
                     float c = std::cos(rad);
                     float s = std::sin(rad);
                     rotated.x = p.x * c + p.z * s;
                     rotated.y = p.y;
                     rotated.z = -p.x * s + p.z * c;
-                }
-                else {
+                } else {
                     float c = std::cos(rad);
                     float s = std::sin(rad);
                     rotated.x = p.x * c - p.y * s;
                     rotated.y = p.x * s + p.y * c;
                     rotated.z = p.z;
                 }
-                mesh.V.push_back({ rotated.x, rotated.y, rotated.z });
+                mesh.V.push_back({rotated.x, rotated.y, rotated.z});
             }
         }
         for (int i = 0; i < n - 1; ++i) {
@@ -54,7 +50,7 @@ namespace lab7 {
                 int v2 = (i + 1) * m + kNext;
                 int v3 = i * m + kNext;
                 Face f;
-                f.idx = { v0, v1, v2, v3 };
+                f.idx = {v0, v1, v2, v3};
                 mesh.F.push_back(std::move(f));
             }
         }
@@ -82,8 +78,8 @@ namespace lab7 {
     }
 
     static Mesh buildFunctionSurface(std::function<float(float, float)> func,
-        float x0, float x1, float y0, float y1,
-        int subdivisionsX, int subdivisionsY) {
+                                     float x0, float x1, float y0, float y1,
+                                     int subdivisionsX, int subdivisionsY) {
         Mesh mesh;
 
         if (subdivisionsX < 1 || subdivisionsY < 1) {
@@ -98,7 +94,7 @@ namespace lab7 {
             for (int j = 0; j <= subdivisionsX; ++j) {
                 float x = x0 + j * stepX;
                 float z = func(x, y);
-                mesh.V.push_back({ x, y, z });
+                mesh.V.push_back({x, y, z});
             }
         }
 
@@ -111,7 +107,7 @@ namespace lab7 {
                 int v3 = (i + 1) * pointsPerRow + j;
 
                 Face f;
-                f.idx = { v0, v1, v2, v3 };
+                f.idx = {v0, v1, v2, v3};
                 mesh.F.push_back(std::move(f));
             }
         }
@@ -119,7 +115,7 @@ namespace lab7 {
         return mesh;
     }
 
-    int run() {
+    int run_lab_7() {
         const int W = 1200, H = 800;
         if (!glfwInit()) return 1;
 #ifdef __APPLE__
@@ -128,7 +124,7 @@ namespace lab7 {
         glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
         glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
 #endif
-        GLFWwindow* win = glfwCreateWindow(W, H, "Surface of Revolution & Function Graph", nullptr, nullptr);
+        GLFWwindow *win = glfwCreateWindow(W, H, "Surface of Revolution & Function Graph", nullptr, nullptr);
         if (!win) {
             glfwTerminate();
             return 1;
@@ -137,8 +133,8 @@ namespace lab7 {
         glfwSwapInterval(1);
         IMGUI_CHECKVERSION();
         ImGui::CreateContext();
-        ImGuiIO& io = ImGui::GetIO();
-        (void)io;
+        ImGuiIO &io = ImGui::GetIO();
+        (void) io;
         ImGui::StyleColorsLight();
         ImGui_ImplGlfw_InitForOpenGL(win, true);
 #ifdef __APPLE__
@@ -150,23 +146,24 @@ namespace lab7 {
         bool showAxes = true;
 
         ImGui::FileBrowser saveFileDialog(
-            ImGuiFileBrowserFlags_SelectDirectory |
-            ImGuiFileBrowserFlags_CloseOnEsc |
-            ImGuiFileBrowserFlags_ConfirmOnEnter
+                ImGuiFileBrowserFlags_SelectDirectory |
+                ImGuiFileBrowserFlags_CloseOnEsc |
+                ImGuiFileBrowserFlags_ConfirmOnEnter
         );
         ImGui::FileBrowser openFileDialog(
-            ImGuiFileBrowserFlags_CloseOnEsc |
-            ImGuiFileBrowserFlags_ConfirmOnEnter
+                ImGuiFileBrowserFlags_CloseOnEsc |
+                ImGuiFileBrowserFlags_ConfirmOnEnter
         );
-        openFileDialog.SetTypeFilters({ ".obj" });
+        openFileDialog.SetTypeFilters({".obj"});
 
-        static vector<Vec3> generatrix = { {100.f, 0.f, 0.f}, {100.f, 100.f, 0.f} };
+        static vector<Vec3> generatrix = {{100.f, 0.f,   0.f},
+                                          {100.f, 100.f, 0.f}};
         static int subdivisions = 12;
         static int axisIndex = 2;
-        const char* axisNames[] = { "X", "Y", "Z" };
+        const char *axisNames[] = {"X", "Y", "Z"};
 
         static int funcIndex = 0;
-        const char* funcNames[] = { "Plane z=0", "Paraboloid", "Saddle", "Wave", "Hill" };
+        const char *funcNames[] = {"Plane z=0", "Paraboloid", "Saddle", "Wave", "Hill"};
         static float x0 = -200.0f, x1 = 200.0f;
         static float y0 = -200.0f, y1 = 200.0f;
         static int subdivX = 20, subdivY = 20;
@@ -193,8 +190,7 @@ namespace lab7 {
             if (!S.proj.perspective) {
                 ImGui::SliderFloat("Axon X", &S.proj.ax, 0.f, 90.f);
                 ImGui::SliderFloat("Axon Y", &S.proj.ay, 0.f, 90.f);
-            }
-            else {
+            } else {
                 ImGui::SliderFloat("Focus f", &S.proj.f, 100.f, 2000.f);
             }
 
@@ -203,17 +199,19 @@ namespace lab7 {
             ImGui::Checkbox("Show face normals", &S.showFaceNormals);
             ImGui::Checkbox("Use custom view vector", &S.useCustomView);
             if (S.useCustomView) {
-                float vv[3] = { S.viewVec.x, S.viewVec.y, S.viewVec.z };
+                float vv[3] = {S.viewVec.x, S.viewVec.y, S.viewVec.z};
                 if (ImGui::InputFloat3("View vector", vv)) {
-                    S.viewVec.x = vv[0]; S.viewVec.y = vv[1]; S.viewVec.z = vv[2];
+                    S.viewVec.x = vv[0];
+                    S.viewVec.y = vv[1];
+                    S.viewVec.z = vv[2];
                 }
             }
 
             ImGui::SeparatorText("Lighting");
-            const char* shadingItems[] = { "Wireframe", "Gouraud (Lambert)", "Phong toon" };
+            const char *shadingItems[] = {"Wireframe", "Gouraud (Lambert)", "Phong toon"};
             ImGui::Combo("Shading", &S.shadingMode, shadingItems, IM_ARRAYSIZE(shadingItems));
 
-            float lightPosArr[3] = { S.lightPos.x, S.lightPos.y, S.lightPos.z };
+            float lightPosArr[3] = {S.lightPos.x, S.lightPos.y, S.lightPos.z};
             if (ImGui::InputFloat3("Light position", lightPosArr)) {
                 S.lightPos.x = lightPosArr[0];
                 S.lightPos.y = lightPosArr[1];
@@ -227,17 +225,17 @@ namespace lab7 {
             ImGui::SeparatorText("Rotate around center");
             if (ImGui::Button("X +5")) {
                 Vec3 Cw = worldCenter(S.base, S.modelMat);
-                worldRotateAroundAxisThrough(S, Cw, { 1, 0, 0 }, +5.f);
+                worldRotateAroundAxisThrough(S, Cw, {1, 0, 0}, +5.f);
             }
             ImGui::SameLine();
             if (ImGui::Button("Y +5")) {
                 Vec3 Cw = worldCenter(S.base, S.modelMat);
-                worldRotateAroundAxisThrough(S, Cw, { 0, 1, 0 }, +5.f);
+                worldRotateAroundAxisThrough(S, Cw, {0, 1, 0}, +5.f);
             }
             ImGui::SameLine();
             if (ImGui::Button("Z +5")) {
                 Vec3 Cw = worldCenter(S.base, S.modelMat);
-                worldRotateAroundAxisThrough(S, Cw, { 0, 0, 1 }, +5.f);
+                worldRotateAroundAxisThrough(S, Cw, {0, 0, 1}, +5.f);
             }
             ImGui::SeparatorText("Reflect");
             if (ImGui::Button("XY")) worldReflectPlane(S, Mat4::RefXY());
@@ -260,10 +258,10 @@ namespace lab7 {
             if (ImGui::Button("Rotate P0-P1 -5")) worldRotateAroundLine(S, S.P0, S.P1, -5.f);
             if (ImGui::Button("Reset [C]")) {
                 if (S.kind == PolyKind::Tetra) S.base = makeTetra(150.f);
-                if (S.kind == PolyKind::Cube)  S.base = makeCube(150.f);
-                if (S.kind == PolyKind::Octa)  S.base = makeOcta(150.f);
-                if (S.kind == PolyKind::Ico)   S.base = makeIcosa(150.f);
-                if (S.kind == PolyKind::Dode)  S.base = makeDodeca(150.f);
+                if (S.kind == PolyKind::Cube) S.base = makeCube(150.f);
+                if (S.kind == PolyKind::Octa) S.base = makeOcta(150.f);
+                if (S.kind == PolyKind::Ico) S.base = makeIcosa(150.f);
+                if (S.kind == PolyKind::Dode) S.base = makeDodeca(150.f);
                 S.modelMat = Mat4::I();
                 S.proj.perspective = true;
                 S.proj.ax = 35.264f;
@@ -284,8 +282,7 @@ namespace lab7 {
                 if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled)) {
                     ImGui::SetTooltip("Enter filename");
                 }
-            }
-            else {
+            } else {
                 if (ImGui::Button("Save file")) {
                     saveFileDialog.Open();
                 }
@@ -296,7 +293,7 @@ namespace lab7 {
             if (subdivisions < 3) subdivisions = 3;
             ImGui::Text("Generatrix points:");
             for (size_t i = 0; i < generatrix.size(); ++i) {
-                float xyz[3] = { generatrix[i].x, generatrix[i].y, generatrix[i].z };
+                float xyz[3] = {generatrix[i].x, generatrix[i].y, generatrix[i].z};
                 char label[32];
                 snprintf(label, sizeof(label), "P%zu", i);
                 if (ImGui::InputFloat3(label, xyz)) {
@@ -308,9 +305,8 @@ namespace lab7 {
             if (ImGui::Button("Add point")) {
                 if (!generatrix.empty()) {
                     generatrix.push_back(generatrix.back());
-                }
-                else {
-                    generatrix.push_back({ 0.f, 0.f, 0.f });
+                } else {
+                    generatrix.push_back({0.f, 0.f, 0.f});
                 }
             }
             ImGui::SameLine();
@@ -324,9 +320,10 @@ namespace lab7 {
                     S.kind = PolyKind::UserObj;
                     S.base = newMesh;
                     S.modelMat = Mat4::I();
-                    string objName = string("Revol@") + axisNames[axisIndex] + string("/") + std::to_string(subdivisions);
+                    string objName =
+                            string("Revol@") + axisNames[axisIndex] + string("/") + std::to_string(subdivisions);
                     S.meshesNames.push_back(objName);
-                    S.meshes.push_back({ PolyKind::UserObj, newMesh });
+                    S.meshes.push_back({PolyKind::UserObj, newMesh});
                     S.polyIdx = static_cast<int>(S.meshes.size() - 1);
                 }
             }
@@ -346,12 +343,23 @@ namespace lab7 {
                 std::function<float(float, float)> selectedFunc;
 
                 switch (funcIndex) {
-                case 0: selectedFunc = funcPlane; break;
-                case 1: selectedFunc = funcParaboloid; break;
-                case 2: selectedFunc = funcSaddle; break;
-                case 3: selectedFunc = funcWave; break;
-                case 4: selectedFunc = funcHill; break;
-                default: selectedFunc = funcPlane;
+                    case 0:
+                        selectedFunc = funcPlane;
+                        break;
+                    case 1:
+                        selectedFunc = funcParaboloid;
+                        break;
+                    case 2:
+                        selectedFunc = funcSaddle;
+                        break;
+                    case 3:
+                        selectedFunc = funcWave;
+                        break;
+                    case 4:
+                        selectedFunc = funcHill;
+                        break;
+                    default:
+                        selectedFunc = funcPlane;
                 }
 
                 Mesh newMesh = buildFunctionSurface(selectedFunc, x0, x1, y0, y1, subdivX, subdivY);
@@ -360,9 +368,9 @@ namespace lab7 {
                     S.base = newMesh;
                     S.modelMat = Mat4::I();
                     string objName = string("Func@") + funcNames[funcIndex] +
-                        string("/") + std::to_string(subdivX) + "x" + std::to_string(subdivY);
+                                     string("/") + std::to_string(subdivX) + "x" + std::to_string(subdivY);
                     S.meshesNames.push_back(objName);
-                    S.meshes.push_back({ PolyKind::UserObj, newMesh });
+                    S.meshes.push_back({PolyKind::UserObj, newMesh});
                     S.polyIdx = static_cast<int>(S.meshes.size() - 1);
                 }
             }
@@ -388,8 +396,7 @@ namespace lab7 {
             if (showAxes) drawAxes(S.proj, 250.f);
             if (S.shadingMode == 0) {
                 drawWireImGui(S.base, S.modelMat, S, IM_COL32(20, 20, 20, 255), 1.8f);
-            }
-            else {
+            } else {
                 drawShadedImGui(S.base, S.modelMat, S);
             }
             int fbw, fbh;
