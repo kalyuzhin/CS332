@@ -383,6 +383,13 @@ enum class PolyKind {
     Tetra = 0, Cube, Octa, Ico, Dode, UserObj
 };
 
+struct Camera {
+    Vec3 pos{0.f, 0.f, -600.f};
+    Vec3 target{0.f, 0.f, 0.f};
+    Vec3 up{0.f, 1.f, 0.f};
+};
+
+
 struct MeshData {
     const char *name;
     PolyKind kind;
@@ -390,6 +397,13 @@ struct MeshData {
 };
 
 struct AppState {
+    Camera camera;
+    bool useCamera = false;
+    bool cameraOrbit = true;
+    float camRadius = 600.f;
+    float camYaw = 0.f;
+    float camPitch = 20.f;
+
     vector<string> meshesNames = {"Tetrahedron", "Cube", "Octahedron", "Icosahedron", "Dodecahedron"};
     vector<pair<PolyKind, Mesh>> meshes = {
             {PolyKind::Tetra, makeTetra(150.f)},
@@ -429,6 +443,26 @@ struct AppState {
 
 inline Vec3 worldCenter(const Mesh &base, const Mat4 &M) { return xform(centroid(base), M); }
 
+inline void updateCameraOrbit(AppState &S) {
+    Vec3 center = worldCenter(S.base, S.modelMat);
+
+    float ry = deg2rad(S.camYaw);
+    float rp = deg2rad(S.camPitch);
+
+    float cy = std::cos(ry), sy = std::sin(ry);
+    float cp = std::cos(rp), sp = std::sin(rp);
+
+    Vec3 offset;
+    offset.x = S.camRadius * cp * sy;
+    offset.y = S.camRadius * sp;
+    offset.z = S.camRadius * cp * cy;
+
+    S.camera.pos = center + offset;
+    S.camera.target = center;
+    S.camera.up = {0.f, 1.f, 0.f};
+}
+
+
 inline void worldTranslate(AppState &S, float dx, float dy, float dz) {
     S.modelMat = S.modelMat * Mat4::T(dx, dy, dz);
 }
@@ -448,20 +482,76 @@ inline void worldRotateAroundLine(AppState &S, const Vec3 &P0w, const Vec3 &P1w,
     S.modelMat = S.modelMat * Mat4::T(-P0w.x, -P0w.y, -P0w.z) * Mat4::Raxis(u, deg) * Mat4::T(P0w.x, P0w.y, P0w.z);
 }
 
-static void drawAxes(const Projector &proj, float len = 250.f) {
+static bool projectPoint(const AppState &S, const Vec3 &pw, int &X, int &Y) {
+    const Projector &proj = S.proj;
+
+    if (proj.perspective) {
+        if (S.useCamera) {
+            Vec3 fwd = norm(S.camera.target - S.camera.pos);
+            if (vlen(fwd) < 1e-6f) return false;
+
+            Vec3 up = S.camera.up;
+            if (vlen(up) < 1e-6f) up = {0.f, 1.f, 0.f};
+
+            Vec3 right = norm(cross(fwd, up));
+            if (vlen(right) < 1e-6f) {
+                up = {0.f, 1.f, 0.f};
+                right = norm(cross(fwd, up));
+            }
+            up = cross(right, fwd);
+
+
+            Vec3 d = pw - S.camera.pos;
+            float x_cam = dot(d, right);
+            float y_cam = dot(d, up);
+            float z_cam = dot(d, fwd);
+
+            if (z_cam <= 1e-3f) return false;
+
+            float f = proj.f;
+            float x = (x_cam * f / z_cam) * (proj.scale / f) + proj.cx;
+            float y = (y_cam * f / z_cam) * (proj.scale / f) + proj.cy;
+
+            X = (int) std::lround(x);
+            Y = (int) std::lround(y);
+            return true;
+        }
+
+        float denom = proj.f + pw.z;
+        if (denom <= 1e-3f) return false;
+
+        float x = (pw.x * proj.f / denom) * (proj.scale / proj.f) + proj.cx;
+        float y = (pw.y * proj.f / denom) * (proj.scale / proj.f) + proj.cy;
+
+        X = (int) std::lround(x);
+        Y = (int) std::lround(y);
+        return true;
+    }
+
+    Vec3 q = proj.axo(pw);
+    float x = q.x * proj.scale + proj.cx;
+    float y = q.y * proj.scale + proj.cy;
+    X = (int) std::lround(x);
+    Y = (int) std::lround(y);
+    return true;
+}
+
+
+static void drawAxes(const AppState &S, float len = 250.f) {
     ImDrawList *dl = ImGui::GetBackgroundDrawList();
     Vec3 O{0, 0, 0}, X{len, 0, 0}, Y{0, len, 0}, Z{0, 0, len};
     int ox, oy, xx, xy, yx, yy, zx, zy;
-    if (proj.project(O, ox, oy) && proj.project(X, xx, xy))
+    if (projectPoint(S, O, ox, oy) && projectPoint(S, X, xx, xy))
         dl->AddLine(ImVec2(ox, oy), ImVec2(xx, xy), IM_COL32(255, 0, 0, 255), 2.f);
-    if (proj.project(O, ox, oy) && proj.project(Y, yx, yy))
+    if (projectPoint(S, O, ox, oy) && projectPoint(S, Y, yx, yy))
         dl->AddLine(ImVec2(ox, oy), ImVec2(yx, yy), IM_COL32(0, 200, 0, 255), 2.f);
-    if (proj.project(O, ox, oy) && proj.project(Z, zx, zy))
+    if (projectPoint(S, O, ox, oy) && projectPoint(S, Z, zx, zy))
         dl->AddLine(ImVec2(ox, oy), ImVec2(zx, zy), IM_COL32(0, 128, 255, 255), 2.f);
     ImGui::GetForegroundDrawList()->AddText(ImVec2((float) xx, (float) xy), IM_COL32(255, 0, 0, 255), "X");
     ImGui::GetForegroundDrawList()->AddText(ImVec2((float) yx, (float) yy), IM_COL32(0, 200, 0, 255), "Y");
     ImGui::GetForegroundDrawList()->AddText(ImVec2((float) zx, (float) zy), IM_COL32(0, 128, 255, 255), "Z");
 }
+
 
 struct ShadedVertex {
     int x{}, y{};
@@ -641,12 +731,15 @@ drawWireImGui(const Mesh &base, const Mat4 &model, const AppState &S, ImU32 colo
         Vec3 viewDir;
         if (S.useCustomView) {
             viewDir = norm(S.viewVec);
+        } else if (S.useCamera) {
+            viewDir = norm(S.camera.pos - fc);
         } else if (S.proj.perspective) {
             Vec3 cam{0.f, 0.f, -S.proj.f};
             viewDir = norm(cam - fc);
         } else {
             viewDir = viewDirWorld;
         }
+
 
         bool frontFacing = dot(n, viewDir) > EPS;
 
@@ -656,8 +749,12 @@ drawWireImGui(const Mesh &base, const Mat4 &model, const AppState &S, ImU32 colo
                 Vec3 va = xform({base.V[i0].x, base.V[i0].y, base.V[i0].z}, model);
                 Vec3 vb = xform({base.V[i1].x, base.V[i1].y, base.V[i1].z}, model);
                 int x0, y0, x1, y1;
-                if (S.proj.project(va, x0, y0) && S.proj.project(vb, x1, y1))
-                    dl->AddLine(ImVec2((float) x0, (float) y0), ImVec2((float) x1, (float) y1), color, thick);
+                if (projectPoint(S, va, x0, y0) && projectPoint(S, vb, x1, y1)) {
+                    dl->AddLine(ImVec2((float) x0, (float) y0),
+                                ImVec2((float) x1, (float) y1),
+                                color, thick);
+                }
+
             }
         }
 
@@ -665,7 +762,7 @@ drawWireImGui(const Mesh &base, const Mat4 &model, const AppState &S, ImU32 colo
             Vec3 nstart = fc;
             Vec3 nend = fc + n * 30.f;
             int xs, ys, xe, ye;
-            if (S.proj.project(nstart, xs, ys) && S.proj.project(nend, xe, ye)) {
+            if (projectPoint(S, nstart, xs, ys) && projectPoint(S, nend, xe, ye)) {
                 dl->AddLine(ImVec2((float) xs, (float) ys), ImVec2((float) xe, (float) ye), IM_COL32(200, 30, 30, 255),
                             1.2f);
             }
@@ -691,7 +788,7 @@ static void drawShadedImGui(const Mesh &base, const Mat4 &model, const AppState 
     for (int i = 0; i < nV; ++i) {
         const Vertex &v = base.V[i];
         worldPos[i] = xform({v.x, v.y, v.z}, model);
-        visible[i] = S.proj.project(worldPos[i], sx[i], sy[i]);
+        visible[i] = projectPoint(S, worldPos[i], sx[i], sy[i]);
     }
 
     for (const auto &f: base.F) {
@@ -750,12 +847,15 @@ static void drawShadedImGui(const Mesh &base, const Mat4 &model, const AppState 
         Vec3 viewDir;
         if (S.useCustomView) {
             viewDir = norm(S.viewVec);
+        } else if (S.useCamera) {
+            viewDir = norm(S.camera.pos - fc);
         } else if (S.proj.perspective) {
             Vec3 cam{0.f, 0.f, -S.proj.f};
             viewDir = norm(cam - fc);
         } else {
             viewDir = viewDirWorld;
         }
+
 
         bool frontFacing = dot(n, viewDir) > EPS;
         if (S.backfaceCull && !frontFacing) continue;
@@ -1031,6 +1131,7 @@ inline int run_lab_6() {
         ImGui_ImplGlfw_NewFrame();
         ImGui::NewFrame();
         ImGui::Begin("Controls");
+
         //const char *items[] = {"Tetrahedron", "Cube", "Octahedron", "Icosahedron", "Dodecahedron"};
         auto meshNames = S.getMeshNamesForImGui();
         if (ImGui::Combo("Polyhedron", &S.polyIdx, meshNames.data(), meshNames.size())) {
@@ -1046,6 +1147,27 @@ inline int run_lab_6() {
             ImGui::SliderFloat("Axon X", &S.proj.ax, 0.f, 90.f);
             ImGui::SliderFloat("Axon Y", &S.proj.ay, 0.f, 90.f);
         } else { ImGui::SliderFloat("Focus f", &S.proj.f, 100.f, 2000.f); }
+
+        ImGui::SeparatorText("Camera");
+        ImGui::Checkbox("Use camera", &S.useCamera);
+        if (S.useCamera) {
+            S.proj.perspective = true; // камера только в перспективе
+
+            ImGui::Checkbox("Orbit around object", &S.cameraOrbit);
+            if (S.cameraOrbit) {
+                ImGui::SliderFloat("Radius", &S.camRadius, 100.f, 2000.f);
+                ImGui::SliderFloat("Yaw", &S.camYaw, -180.f, 180.f);
+                ImGui::SliderFloat("Pitch", &S.camPitch, -80.f, 80.f);
+                updateCameraOrbit(S);
+            } else {
+                ImGui::InputFloat3("Cam position", &S.camera.pos.x);
+                ImGui::InputFloat3("Cam target", &S.camera.target.x);
+            }
+
+            Vec3 dir = norm(S.camera.target - S.camera.pos);
+            ImGui::Text("Dir: (%.1f, %.1f, %.1f)", dir.x, dir.y, dir.z);
+        }
+
 
         // New UI: back-face culling and view vector
         ImGui::SeparatorText("Back-face culling");
@@ -1166,7 +1288,7 @@ inline int run_lab_6() {
 
         S.proj.cx = ImGui::GetIO().DisplaySize.x * 0.5f;
         S.proj.cy = ImGui::GetIO().DisplaySize.y * 0.5f;
-        if (showAxes) drawAxes(S.proj, 250.f);
+        if (showAxes) drawAxes(S, 250.f);
         if (S.shadingMode == 0) {
             drawWireImGui(S.base, S.modelMat, S, IM_COL32(20, 20, 20, 255), 1.8f);
         } else {

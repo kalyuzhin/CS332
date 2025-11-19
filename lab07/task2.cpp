@@ -194,6 +194,27 @@ namespace lab7 {
                 ImGui::SliderFloat("Focus f", &S.proj.f, 100.f, 2000.f);
             }
 
+            ImGui::SeparatorText("Camera");
+            ImGui::Checkbox("Use camera", &S.useCamera);
+            if (S.useCamera) {
+                S.proj.perspective = true;
+
+                ImGui::Checkbox("Orbit around object", &S.cameraOrbit);
+                if (S.cameraOrbit) {
+                    ImGui::SliderFloat("Radius", &S.camRadius, 100.f, 2000.f);
+                    ImGui::SliderFloat("Yaw", &S.camYaw, -180.f, 180.f);
+                    ImGui::SliderFloat("Pitch", &S.camPitch, -80.f, 80.f);
+                    updateCameraOrbit(S);
+                } else {
+                    ImGui::InputFloat3("Cam position", &S.camera.pos.x);
+                    ImGui::InputFloat3("Cam target", &S.camera.target.x);
+                }
+
+                Vec3 dir = norm(S.camera.target - S.camera.pos);
+                ImGui::Text("Dir: (%.1f, %.1f, %.1f)", dir.x, dir.y, dir.z);
+            }
+
+
             ImGui::SeparatorText("Back-face culling");
             ImGui::Checkbox("Back-face culling", &S.backfaceCull);
             ImGui::Checkbox("Show face normals", &S.showFaceNormals);
@@ -393,7 +414,7 @@ namespace lab7 {
             }
             S.proj.cx = ImGui::GetIO().DisplaySize.x * 0.5f;
             S.proj.cy = ImGui::GetIO().DisplaySize.y * 0.5f;
-            if (showAxes) drawAxes(S.proj, 250.f);
+            if (showAxes) drawAxes(S, 250.f);
             if (S.shadingMode == 0) {
                 drawWireImGui(S.base, S.modelMat, S, IM_COL32(20, 20, 20, 255), 1.8f);
             } else {
