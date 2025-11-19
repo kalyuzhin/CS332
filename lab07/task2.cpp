@@ -37,7 +37,6 @@ namespace lab7 {
         }
     };
 
-    // Function to compute face normal
     inline Vec3 computeFaceNormal(const Mesh& mesh, const Face& face, const Mat4& model) {
         if (face.idx.size() < 3) return { 0, 0, 0 };
 
@@ -50,15 +49,12 @@ namespace lab7 {
         return norm(cross(edge1, edge2));
     }
 
-    // Function to check if face is visible (backface culling)
     inline bool isFaceVisible(const Vec3& normal, const Vec3& viewDir) {
         return dot(normal, viewDir) < 0;
     }
 
-    // Function to rasterize a triangle using z-buffer
     static void rasterizeTriangle(ZBuffer& zBuffer, const std::vector<Vec3>& screenCoords,
         const std::vector<float>& depths, ImU32 color, const AppState& S) {
-        // Find bounding box
         int minX = S.proj.cx * 2, maxX = 0;
         int minY = S.proj.cy * 2, maxY = 0;
 
@@ -69,39 +65,31 @@ namespace lab7 {
             maxY = std::max(maxY, (int)p.y);
         }
 
-        // Clamp to screen bounds
         minX = std::max(0, minX);
         maxX = std::min(zBuffer.width - 1, maxX);
         minY = std::max(0, minY);
         maxY = std::min(zBuffer.height - 1, maxY);
 
-        // Get triangle vertices
         const Vec3& v0 = screenCoords[0];
         const Vec3& v1 = screenCoords[1];
         const Vec3& v2 = screenCoords[2];
 
-        // Compute triangle area
         float area = (v1.x - v0.x) * (v2.y - v0.y) - (v2.x - v0.x) * (v1.y - v0.y);
         if (std::abs(area) < 1e-6f) return;
 
         float invArea = 1.0f / area;
 
-        // Rasterize
         ImDrawList* dl = ImGui::GetBackgroundDrawList();
 
         for (int y = minY; y <= maxY; ++y) {
             for (int x = minX; x <= maxX; ++x) {
-                // Compute barycentric coordinates
                 float w0 = ((v1.x - x) * (v2.y - y) - (v2.x - x) * (v1.y - y)) * invArea;
                 float w1 = ((v2.x - x) * (v0.y - y) - (v0.x - x) * (v2.y - y)) * invArea;
                 float w2 = ((v0.x - x) * (v1.y - y) - (v1.x - x) * (v0.y - y)) * invArea;
 
-                // Check if point is inside triangle
                 if (w0 >= 0 && w1 >= 0 && w2 >= 0) {
-                    // Interpolate depth
                     float z = w0 * depths[0] + w1 * depths[1] + w2 * depths[2];
 
-                    // Z-buffer test
                     if (zBuffer.testAndSet(x, y, z)) {
                         dl->AddRectFilled(ImVec2((float)x, (float)y),
                             ImVec2((float)x + 1, (float)y + 1), color);
@@ -111,7 +99,6 @@ namespace lab7 {
         }
     }
 
-    // Function to project point with camera support
     static bool projectPointWithCamera(const AppState& S, const Vec3& pw, int& X, int& Y, float& depth) {
         const Projector& proj = S.proj;
 
@@ -143,7 +130,7 @@ namespace lab7 {
 
                 X = (int)std::lround(x);
                 Y = (int)std::lround(y);
-                depth = z_cam; // Use camera space depth for z-buffer
+                depth = z_cam;
                 return true;
             }
 
@@ -155,7 +142,7 @@ namespace lab7 {
 
             X = (int)std::lround(x);
             Y = (int)std::lround(y);
-            depth = pw.z + proj.f; // Use perspective-corrected depth
+            depth = pw.z + proj.f;
             return true;
         }
 
@@ -164,25 +151,21 @@ namespace lab7 {
         float y = q.y * proj.scale + proj.cy;
         X = (int)std::lround(x);
         Y = (int)std::lround(y);
-        depth = q.z; // Use z-coordinate in view space for parallel projection
+        depth = q.z;
         return true;
     }
 
-    // Function to draw mesh with z-buffer and camera support
     static void drawMeshZBuffer(const Mesh& mesh, const Mat4& model, const AppState& S,
         ZBuffer& zBuffer, ImU32 color, bool showWireframe) {
 
-        // Compute view direction based on AppState settings
         Vec3 viewDir{ 0,0,1 };
         if (S.useCustomView) {
             viewDir = norm(S.viewVec);
         }
         else if (S.proj.perspective && !S.useCamera) {
-            // For perspective without camera, use default view direction
             viewDir = { 0, 0, 1 };
         }
         else if (!S.proj.perspective) {
-            // For parallel projection
             Vec4 v{ 0.f, 0.f, 1.f, 0.f };
             Mat4 R = Mat4::Rx(S.proj.ax) * Mat4::Ry(S.proj.ay);
             Vec4 r = v * R;
@@ -197,10 +180,8 @@ namespace lab7 {
             const auto& face = mesh.F[fi];
             if (face.idx.size() < 3) continue;
 
-            // Compute face normal and check visibility using AppState's backface culling logic
             Vec3 normal = computeFaceNormal(mesh, face, model);
 
-            // Compute face centroid for orientation and perspective
             Vec3 fc{ 0,0,0 };
             for (int vidx : face.idx) {
                 Vec3 v = xform({ mesh.V[vidx].x, mesh.V[vidx].y, mesh.V[vidx].z }, model);
@@ -208,13 +189,11 @@ namespace lab7 {
             }
             fc = fc * (1.f / (float)face.idx.size());
 
-            // Orient normal outward
             Vec3 faceV = fc - meshC;
             if (dot(normal, faceV) < 0.f) {
                 normal = normal * -1.f;
             }
 
-            // Determine final view direction for this face
             Vec3 finalViewDir = viewDir;
             if (S.useCamera) {
                 finalViewDir = norm(S.camera.pos - fc);
@@ -224,14 +203,12 @@ namespace lab7 {
                 finalViewDir = norm(cam - fc);
             }
 
-            // Apply backface culling if enabled
             bool frontFacing = dot(normal, finalViewDir) > EPS;
             if (S.backfaceCull && !frontFacing) {
                 continue;
             }
 
             if (face.idx.size() == 3) {
-                // Triangle face
                 std::vector<Vec3> screenCoords;
                 std::vector<float> depths;
                 bool allVisible = true;
@@ -265,7 +242,6 @@ namespace lab7 {
                 }
             }
             else {
-                // Polygon face - triangulate by fan method
                 for (size_t i = 1; i < face.idx.size() - 1; ++i) {
                     std::vector<int> triIndices = { face.idx[0], face.idx[i], face.idx[i + 1] };
                     std::vector<Vec3> screenCoords;
@@ -290,12 +266,10 @@ namespace lab7 {
                 }
 
                 if (showWireframe) {
-                    // Use original draw function for wireframe
                     drawWireImGui(mesh, model, S, IM_COL32(0, 0, 0, 255), 1.0f);
                 }
             }
 
-            // Draw face normals if enabled
             if (S.showFaceNormals) {
                 Vec3 nstart = fc;
                 Vec3 nend = fc + normal * 30.f;
@@ -311,7 +285,7 @@ namespace lab7 {
         }
     }
 
-#endif // Z_BUFFER_H
+#endif
 
     static Mesh buildRevolution(const vector<Vec3>& gen, char axis, int subdivisions) {
         Mesh mesh;
@@ -425,30 +399,22 @@ namespace lab7 {
         return mesh;
     }
 
-    // Функция для создания нескольких объектов для демонстрации перекрытия
     static vector<pair<Mesh, Mat4>> createDemoObjects(const AppState& S) {
         vector<pair<Mesh, Mat4>> objects;
 
-        // Центральный объект - текущий выбранный объект
         objects.push_back({ S.base, S.modelMat });
 
-        // Дополнительные объекты вокруг центрального для демонстрации Z-буфера
         float offset = 250.f;
 
-        // Объект справа
-        objects.push_back({ makeCube(80.f), Mat4::T(offset, 0.f, 0.f) * S.modelMat });
+        objects.push_back({ makeCube(80.f), Mat4::T(offset * 0.4f, 0.f, 0.f) * S.modelMat });
 
-        // Объект слева
         objects.push_back({ makeTetra(70.f), Mat4::T(-offset, 0.f, 0.f) * S.modelMat });
 
-        // Объект сверху
         objects.push_back({ makeOcta(60.f), Mat4::T(0.f, offset, 0.f) * S.modelMat });
 
-        // Объект снизу
         objects.push_back({ makeIcosa(50.f), Mat4::T(0.f, -offset, 0.f) * S.modelMat });
 
-        // Объект спереди
-        objects.push_back({ makeDodeca(40.f), Mat4::T(0.f, 0.f, offset) * S.modelMat });
+        objects.push_back({ makeDodeca(60.f), Mat4::T(0.f, 0.f, offset * 0.3f) * S.modelMat });
 
         return objects;
     }
@@ -483,13 +449,11 @@ namespace lab7 {
 
         AppState S;
         bool showAxes = true;
-        bool useZBuffer = true; // Включить Z-буфер по умолчанию
-        bool showMultipleObjects = false; // Показывать несколько объектов для демонстрации перекрытия
+        bool useZBuffer = true;
+        bool showMultipleObjects = false;
 
-        // Создаем Z-буфер
         ZBuffer zBuffer(W, H);
 
-        // Настройка камеры по умолчанию
         S.useCamera = true;
         S.cameraOrbit = true;
         S.camRadius = 600.f;
@@ -520,12 +484,10 @@ namespace lab7 {
         static float y0 = -200.0f, y1 = 200.0f;
         static int subdivX = 20, subdivY = 20;
 
-        // Переменные для управления преобразованиями
         static float translateX = 0.f, translateY = 0.f, translateZ = 0.f;
         static float rotateX = 0.f, rotateY = 0.f, rotateZ = 0.f;
         static float scaleX = 1.f, scaleY = 1.f, scaleZ = 1.f;
 
-        // Переменные для управления камерой
         static bool autoRotateCamera = false;
         static float cameraSpeed = 1.0f;
 
@@ -533,7 +495,6 @@ namespace lab7 {
             glfwPollEvents();
             applyKeyOps(win, S);
 
-            // Автоматическое вращение камеры
             if (autoRotateCamera && S.useCamera && S.cameraOrbit) {
                 S.camYaw += 0.5f * cameraSpeed;
                 if (S.camYaw > 180.f) S.camYaw -= 360.f;
@@ -604,7 +565,6 @@ namespace lab7 {
             ImGui::InputFloat("Scale Z", &scaleZ);
 
             if (ImGui::Button("Apply Transformations")) {
-                // Применяем преобразования к текущему объекту
                 Mat4 transform = Mat4::I();
                 transform = transform * Mat4::T(translateX, translateY, translateZ);
                 transform = transform * Mat4::Rx(rotateX) * Mat4::Ry(rotateY) * Mat4::Rz(rotateZ);
@@ -831,7 +791,6 @@ namespace lab7 {
                 openFileDialog.ClearSelected();
             }
 
-            // Обновляем размеры Z-буфера
             ImVec2 displaySize = ImGui::GetIO().DisplaySize;
             if (zBuffer.width != (int)displaySize.x || zBuffer.height != (int)displaySize.y) {
                 zBuffer = ZBuffer((int)displaySize.x, (int)displaySize.y);
@@ -840,27 +799,23 @@ namespace lab7 {
             S.proj.cx = displaySize.x * 0.5f;
             S.proj.cy = displaySize.y * 0.5f;
 
-            // Очищаем Z-буфер каждый кадр
             if (useZBuffer) {
                 zBuffer.clear();
             }
 
             if (showAxes) drawAxes(S, 250.f);
 
-            // Создаем демонстрационные объекты
             vector<pair<Mesh, Mat4>> demoObjects = createDemoObjects(S);
             vector<ImU32> demoColors = {
-                IM_COL32(255, 0, 0, 255),    // Красный - центральный объект
-                IM_COL32(0, 255, 0, 255),    // Зеленый
-                IM_COL32(0, 0, 255, 255),    // Синий
-                IM_COL32(255, 255, 0, 255),  // Желтый
-                IM_COL32(255, 0, 255, 255),  // Пурпурный
-                IM_COL32(0, 255, 255, 255)   // Голубой
+                IM_COL32(255, 0, 0, 255),
+                IM_COL32(0, 255, 0, 255),
+                IM_COL32(0, 0, 255, 255),
+                IM_COL32(255, 255, 0, 255),
+                IM_COL32(255, 0, 255, 255),
+                IM_COL32(0, 255, 255, 255)
             };
 
-            // Отрисовка объектов
             if (showMultipleObjects) {
-                // Рисуем несколько объектов для демонстрации перекрытия
                 for (size_t i = 0; i < demoObjects.size(); ++i) {
                     if (useZBuffer) {
                         drawMeshZBuffer(demoObjects[i].first, demoObjects[i].second, S,
@@ -878,7 +833,6 @@ namespace lab7 {
                 }
             }
             else {
-                // Рисуем только основной объект
                 if (useZBuffer) {
                     ImU32 color = IM_COL32(
                         (int)(S.objectColor.x * 255),
