@@ -30,3 +30,8 @@ build:
 ## runs project
 run: build
 	$(shell ./a.out)
+
+.PHONY: archive
+## make zip-archive of the project
+archive:
+	zip -r task.zip . -x "bin/*" "cmake-build-debug/*" "cmake-build-release/*" ".idea/*" ".git/*" ".DS_Store" ".env" "*.out" "build/*"
