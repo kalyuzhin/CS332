@@ -451,6 +451,8 @@ namespace lab7 {
         bool showAxes = true;
         bool useZBuffer = true;
         bool showMultipleObjects = false;
+        S.texture = makeCheckerTexture(256, 256, 8);
+
 
         ZBuffer zBuffer(W, H);
 
@@ -605,7 +607,7 @@ namespace lab7 {
             }
 
             ImGui::SeparatorText("Lighting");
-            const char* shadingItems[] = { "Wireframe", "Gouraud (Lambert)", "Phong toon" };
+            const char* shadingItems[] = { "Wireframe", "Gouraud (Lambert)", "Phong toon", "Textured" };
             ImGui::Combo("Shading", &S.shadingMode, shadingItems, IM_ARRAYSIZE(shadingItems));
 
             float lightPosArr[3] = { S.lightPos.x, S.lightPos.y, S.lightPos.z };

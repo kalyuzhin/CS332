@@ -34,6 +34,10 @@ struct Vec4 {
     float x{}, y{}, z{}, w{};
 };
 
+struct Vec2 {
+    float u{}, v{};
+};
+
 inline Vec3 operator+(const Vec3 &a, const Vec3 &b) { return {a.x + b.x, a.y + b.y, a.z + b.z}; }
 
 inline Vec3 operator-(const Vec3 &a, const Vec3 &b) { return {a.x - b.x, a.y - b.y, a.z - b.z}; }
@@ -379,6 +383,87 @@ struct Projector {
     }
 };
 
+struct Texture {
+    int width{}, height{};
+    vector<ImU32> data;
+
+    bool empty() const {
+        return width <= 0 || height <= 0 || data.empty();
+    }
+};
+
+inline Texture makeCheckerTexture(int w, int h, int cells = 8) {
+    Texture t;
+    t.width = w;
+    t.height = h;
+    t.data.resize(w * h);
+    for (int y = 0; y < h; ++y) {
+        for (int x = 0; x < w; ++x) {
+            int cx = (x * cells) / w;
+            int cy = (y * cells) / h;
+            bool odd = ((cx + cy) & 1) != 0;
+            ImU32 c = odd ? IM_COL32(255, 255, 255, 255)
+                          : IM_COL32(40, 40, 40, 255);
+            t.data[y * w + x] = c;
+        }
+    }
+    return t;
+}
+
+inline Vec3 colorToVec3(ImU32 col) {
+    float r = float((col >> IM_COL32_R_SHIFT) & 0xFF) / 255.0f;
+    float g = float((col >> IM_COL32_G_SHIFT) & 0xFF) / 255.0f;
+    float b = float((col >> IM_COL32_B_SHIFT) & 0xFF) / 255.0f;
+    return {r, g, b};
+}
+
+inline ImU32 vec3ToColor(const Vec3 &v) {
+    float r = std::clamp(v.x, 0.0f, 1.0f);
+    float g = std::clamp(v.y, 0.0f, 1.0f);
+    float b = std::clamp(v.z, 0.0f, 1.0f);
+    return IM_COL32(
+            (int) std::lround(r * 255.0f),
+            (int) std::lround(g * 255.0f),
+            (int) std::lround(b * 255.0f),
+            255
+    );
+}
+
+inline Vec3 sampleTexture(const Texture &tex, float u, float v) {
+    if (tex.empty()) return {1.0f, 0.0f, 1.0f};
+
+    u = u - std::floor(u);
+    v = v - std::floor(v);
+
+    float fx = u * float(tex.width - 1);
+    float fy = v * float(tex.height - 1);
+
+    int x0 = (int) std::floor(fx);
+    int y0 = (int) std::floor(fy);
+    int x1 = std::min(x0 + 1, tex.width - 1);
+    int y1 = std::min(y0 + 1, tex.height - 1);
+
+    float tx = fx - (float) x0;
+    float ty = fy - (float) y0;
+
+    Vec3 c00 = colorToVec3(tex.data[y0 * tex.width + x0]);
+    Vec3 c10 = colorToVec3(tex.data[y0 * tex.width + x1]);
+    Vec3 c01 = colorToVec3(tex.data[y1 * tex.width + x0]);
+    Vec3 c11 = colorToVec3(tex.data[y1 * tex.width + x1]);
+
+    Vec3 c0 = c00 * (1.0f - tx) + c10 * tx;
+    Vec3 c1 = c01 * (1.0f - tx) + c11 * tx;
+    Vec3 c = c0 * (1.0f - ty) + c1 * ty;
+    return c;
+}
+
+inline ImU32 shadeTextured(const Vec3 &texColor, float intensity) {
+    float I = std::clamp(intensity, 0.0f, 1.0f);
+    Vec3 c{texColor.x * I, texColor.y * I, texColor.z * I};
+    return vec3ToColor(c);
+}
+
+
 enum class PolyKind {
     Tetra = 0, Cube, Octa, Ico, Dode, UserObj
 };
@@ -403,6 +488,7 @@ struct AppState {
     float camRadius = 600.f;
     float camYaw = 0.f;
     float camPitch = 20.f;
+    Texture texture;
 
     vector<string> meshesNames = {"Tetrahedron", "Cube", "Octahedron", "Icosahedron", "Dodecahedron"};
     vector<pair<PolyKind, Mesh>> meshes = {
@@ -558,6 +644,7 @@ struct ShadedVertex {
     Vec3 worldPos{};
     Vec3 normal{};
     float diffuse{};
+    float u{}, v{};
 };
 
 static inline ImU32 shadeColor(const AppState &S, float intensity) {
@@ -687,6 +774,65 @@ static void rasterTrianglePhongToon(ImDrawList *dl,
     }
 }
 
+static void rasterTriangleTextured(ImDrawList *dl,
+                                   const ShadedVertex &v0,
+                                   const ShadedVertex &v1,
+                                   const ShadedVertex &v2,
+                                   const AppState &S,
+                                   const Texture &tex) {
+    ImVec2 disp = ImGui::GetIO().DisplaySize;
+    int screenW = (int) disp.x;
+    int screenH = (int) disp.y;
+
+    float x0 = (float) v0.x, y0 = (float) v0.y;
+    float x1 = (float) v1.x, y1 = (float) v1.y;
+    float x2 = (float) v2.x, y2 = (float) v2.y;
+
+    float minXf = std::min({x0, x1, x2});
+    float maxXf = std::max({x0, x1, x2});
+    float minYf = std::min({y0, y1, y2});
+    float maxYf = std::max({y0, y1, y2});
+
+    int minX = std::max(0, (int) std::floor(minXf));
+    int maxX = std::min(screenW - 1, (int) std::ceil(maxXf));
+    int minY = std::max(0, (int) std::floor(minYf));
+    int maxY = std::min(screenH - 1, (int) std::ceil(maxYf));
+
+    float denom = ((y1 - y2) * (x0 - x2) + (x2 - x1) * (y0 - y2));
+    if (std::fabs(denom) < 1e-6f) return;
+    float invDen = 1.0f / denom;
+
+    for (int y = minY; y <= maxY; ++y) {
+        for (int x = minX; x <= maxX; ++x) {
+            float xf = (float) x + 0.5f;
+            float yf = (float) y + 0.5f;
+
+            float w0 = ((y1 - y2) * (xf - x2) + (x2 - x1) * (yf - y2)) * invDen;
+            float w1 = ((y2 - y0) * (xf - x2) + (x0 - x2) * (yf - y2)) * invDen;
+            float w2 = 1.0f - w0 - w1;
+
+            if (w0 < 0.0f || w1 < 0.0f || w2 < 0.0f) continue;
+
+            float u = w0 * v0.u + w1 * v1.u + w2 * v2.u;
+            float v = w0 * v0.v + w1 * v1.v + w2 * v2.v;
+
+            Vec3 texColor = sampleTexture(tex, u, v);
+
+            Vec3 P = v0.worldPos * w0 + v1.worldPos * w1 + v2.worldPos * w2;
+            Vec3 N = norm(v0.normal * w0 + v1.normal * w1 + v2.normal * w2);
+            Vec3 L = norm(S.lightPos - P);
+            float diff = std::max(0.0f, dot(N, L));
+            float I = S.ambientK + (1.0f - S.ambientK) * diff;
+
+            ImU32 col = shadeTextured(texColor, I);
+
+            dl->AddRectFilled(ImVec2((float) x, (float) y),
+                              ImVec2((float) x + 1.0f, (float) y + 1.0f),
+                              col);
+        }
+    }
+}
+
 
 static void
 drawWireImGui(const Mesh &base, const Mat4 &model, const AppState &S, ImU32 color = IM_COL32(20, 20, 20, 255),
@@ -806,6 +952,7 @@ static void drawShadedImGui(const Mesh &base, const Mat4 &model, const AppState 
         if (vlen(vNormals[i]) > 1e-6f) vNormals[i] = norm(vNormals[i]);
         else vNormals[i] = Vec3{0, 0, 1};
     }
+
     vector<float> vDiffuse(nV, 0.0f);
     if (S.shadingMode == 1) {
         for (int i = 0; i < nV; ++i) {
@@ -813,6 +960,24 @@ static void drawShadedImGui(const Mesh &base, const Mat4 &model, const AppState 
             float diff = std::max(0.0f, dot(vNormals[i], L));
             vDiffuse[i] = diff;
         }
+    }
+
+    vector<Vec2> vUV(nV);
+    float minX = 1e30f, maxX = -1e30f;
+    float minY = 1e30f, maxY = -1e30f;
+    for (int i = 0; i < nV; ++i) {
+        const Vec3 &p = worldPos[i];
+        minX = std::min(minX, p.x);
+        maxX = std::max(maxX, p.x);
+        minY = std::min(minY, p.y);
+        maxY = std::max(maxY, p.y);
+    }
+    float invDX = (maxX - minX) > 1e-6f ? 1.0f / (maxX - minX) : 0.0f;
+    float invDY = (maxY - minY) > 1e-6f ? 1.0f / (maxY - minY) : 0.0f;
+    for (int i = 0; i < nV; ++i) {
+        const Vec3 &p = worldPos[i];
+        vUV[i].u = (p.x - minX) * invDX;
+        vUV[i].v = (p.y - minY) * invDY;
     }
 
     Vec3 meshC_object = centroid(base);
@@ -856,9 +1021,9 @@ static void drawShadedImGui(const Mesh &base, const Mat4 &model, const AppState 
             viewDir = viewDirWorld;
         }
 
-
         bool frontFacing = dot(n, viewDir) > EPS;
         if (S.backfaceCull && !frontFacing) continue;
+
         for (size_t t = 1; t + 1 < f.idx.size(); ++t) {
             int i0 = f.idx[0];
             int i1 = f.idx[t];
@@ -870,10 +1035,20 @@ static void drawShadedImGui(const Mesh &base, const Mat4 &model, const AppState 
             ShadedVertex sv1{sx[i1], sy[i1], worldPos[i1], vNormals[i1], vDiffuse[i1]};
             ShadedVertex sv2{sx[i2], sy[i2], worldPos[i2], vNormals[i2], vDiffuse[i2]};
 
-            if (S.shadingMode == 1)
+            sv0.u = vUV[i0].u;
+            sv0.v = vUV[i0].v;
+            sv1.u = vUV[i1].u;
+            sv1.v = vUV[i1].v;
+            sv2.u = vUV[i2].u;
+            sv2.v = vUV[i2].v;
+
+            if (S.shadingMode == 1) {
                 rasterTriangleGouraud(dl, sv0, sv1, sv2, S);
-            else
+            } else if (S.shadingMode == 2) {
                 rasterTrianglePhongToon(dl, sv0, sv1, sv2, S);
+            } else if (S.shadingMode == 3) {
+                rasterTriangleTextured(dl, sv0, sv1, sv2, S, S.texture);
+            }
         }
     }
 }
@@ -1111,6 +1286,8 @@ inline int run_lab_6() {
     AppState S;
     int polyIdx = 1;
     bool persp = true, showAxes = true;
+    S.texture = makeCheckerTexture(256, 256, 8);
+
 
     ImGui::FileBrowser saveFileDialog(
             ImGuiFileBrowserFlags_SelectDirectory |
@@ -1185,7 +1362,7 @@ inline int run_lab_6() {
 
 
         ImGui::SeparatorText("Lighting");
-        const char *shadingItems[] = {"Wireframe", "Gouraud (Lambert)", "Phong toon"};
+        const char *shadingItems[] = {"Wireframe", "Gouraud (Lambert)", "Phong toon", "Textured"};
         ImGui::Combo("Shading", &S.shadingMode, shadingItems, IM_ARRAYSIZE(shadingItems));
 
         float lightPosArr[3] = {S.lightPos.x, S.lightPos.y, S.lightPos.z};
