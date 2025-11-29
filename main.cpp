@@ -1,9 +1,7 @@
-//#include "lab07/task2.h"
-#include "greenTriangleMark/triangle.h"
+#include "lab11/lab11.h"
 
 int main() {
-//    lab7::run_lab_7();
-    greenTriangleMark::run_green_triangle_mark();
+    lab11::run_lab11();
 
-	return 0;
+    return 0;
 }
