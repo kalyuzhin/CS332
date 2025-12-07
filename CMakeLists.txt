@@ -11,6 +11,7 @@ set(SOURCES
         lab07/task2.h
         greenTriangleMark/triangle.h
         lab11/lab11.h
+        lab12/lab12.h
 )
 
 file(GLOB_RECURSE LAB04_FILES "Lab04/*.cpp" "Lab04/*.h")
@@ -61,11 +62,24 @@ target_link_libraries(CS332
     ${WIN32_LIBRARIES}
 )
 
+if(WIN32)
+    target_link_directories(CS332 PRIVATE ${CMAKE_SOURCE_DIR}/build/TriangleDependences/lib)
+    target_link_directories(CS332 PRIVATE ${CMAKE_SOURCE_DIR}/build/TriangleDependences/bin)
+    target_link_libraries(CS332
+        glew32
+        sfml-graphics-d
+        sfml-window-d
+        sfml-system-d
+)
+endif()
+
 target_include_directories(CS332 PRIVATE ${CMAKE_SOURCE_DIR})
 target_include_directories(CS332 PRIVATE ${OpenCV_INCLUDE_DIRS})
 target_include_directories(CS332 PRIVATE build/imgui build/imgui/backends)
 target_include_directories(CS332 PRIVATE build/glfw build/glfw/include/GLFW)
 target_include_directories(CS332 PRIVATE build/imfilebrowser)
+target_include_directories(CS332 PRIVATE build/TriangleDependences build/TriangleDependences/include)
+
 if (WIN32)
     target_compile_definitions(CS332 PRIVATE _CRT_SECURE_NO_WARNINGS)
     target_link_libraries(${PROJECT_NAME} opengl32 gdi32)
