@@ -24,3 +24,6 @@ imgui/
 *.out
 *.zip
 *.tar.gz
+vcpkg.json
+vcpkg-configuration.json
+vcpkg_installed/

@@ -6,24 +6,13 @@ set(CMAKE_CXX_STANDARD 20)
 set(SOURCES
     main.cpp
     provider.h
-        lab06/lab.h
-        lab07/task2.cpp
-        lab07/task2.h
         greenTriangleMark/triangle.h
         lab11/lab11.h
 )
 
-file(GLOB_RECURSE LAB04_FILES "Lab04/*.cpp" "Lab04/*.h")
-list(APPEND SOURCES ${LAB04_FILES})
-file(GLOB_RECURSE LAB05_FILES "Lab05/*.cpp" "Lab05/*.h")
-list(APPEND SOURCES ${LAB05_FILES})
 message(STATUS "Sources: ${SOURCES}")
 
 add_executable(CS332 ${SOURCES})
-
-if (DEFINED ENV{OpenCV_DIR})
-    set(OpenCV_DIR $ENV{OpenCV_DIR})
-endif ()
 
 target_sources(${PROJECT_NAME} PRIVATE
         build/imgui/imgui.cpp
@@ -44,25 +33,25 @@ if(WIN32)
     )
 endif()
 
-find_package(OpenCV REQUIRED)
-#find_package(imgui REQUIRED)
 if(APPLE)
     find_package(glfw3 REQUIRED)
 endif()
 find_package(OpenGL REQUIRED)
-message(STATUS "OpenCV version: ${OpenCV_VERSION}")
-message(STATUS "OpenCV libraries: ${OpenCV_LIBS}")
-message(STATUS "OpenCV include dir: ${OpenCV_INCLUDE_DIRS}")
+find_package(GLEW REQUIRED)
+find_package(SFML CONFIG REQUIRED COMPONENTS System Window Graphics)
 
 
 target_link_libraries(CS332 
     ${OpenCV_LIBS}
     glfw
     ${WIN32_LIBRARIES}
+    GLEW::GLEW
+    SFML::System
+    SFML::Window
+    SFML::Graphics
 )
 
 target_include_directories(CS332 PRIVATE ${CMAKE_SOURCE_DIR})
-target_include_directories(CS332 PRIVATE ${OpenCV_INCLUDE_DIRS})
 target_include_directories(CS332 PRIVATE build/imgui build/imgui/backends)
 target_include_directories(CS332 PRIVATE build/glfw build/glfw/include/GLFW)
 target_include_directories(CS332 PRIVATE build/imfilebrowser)
