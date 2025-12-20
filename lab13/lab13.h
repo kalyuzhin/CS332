@@ -69,7 +69,7 @@ namespace lab13 {
 		if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS) dx += speed;
 		if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS) dx -= speed;
 		if (glfwGetKey(window, GLFW_KEY_SPACE) == GLFW_PRESS) dy += speed;
-		if (glfwGetKey(window, GLFW_KEY_RIGHT_SHIFT) == GLFW_PRESS) dy -= speed;
+		if (glfwGetKey(window, GLFW_KEY_LEFT_SHIFT) == GLFW_PRESS) dy -= speed;
 		if (glfwGetKey(window, GLFW_KEY_LEFT) == GLFW_PRESS) cam.yaw -= 0.1f;
 		if (glfwGetKey(window, GLFW_KEY_RIGHT) == GLFW_PRESS) cam.yaw += 0.1f;
 		if (glfwGetKey(window, GLFW_KEY_UP) == GLFW_PRESS) cam.pitch += 0.1f;
@@ -177,6 +177,10 @@ namespace lab13 {
 		return sh;
 	}
 
+	struct InstanceData {
+		float modelMatrix[16];
+	};
+
 	GLuint createProgram(const char* vs, const char* fs) {
 		GLuint prog = glCreateProgram();
 		GLuint v = compileShader(GL_VERTEX_SHADER, vs);
@@ -203,17 +207,52 @@ namespace lab13 {
 #endif
 		glEnable(GL_DEPTH_TEST);
 
-		const char* vs = R"(
+		const char* vsSun = R"(
 			#version 330 core
 			layout(location = 0) in vec3 aPos;
 			layout(location = 1) in vec2 aTex;
-			uniform mat4 uModel, uView, uProj;
+			uniform mat4 uModel;
+			uniform mat4 uView;
+			uniform mat4 uProj;
 			out vec2 TexCoord;
 			void main() {
 				gl_Position = uProj * uView * uModel * vec4(aPos, 1.0);
 				TexCoord = aTex;
 			}
 		)";
+
+		const char* vsPlanet = R"(
+			#version 330 core
+			layout(location = 0) in vec3 aPos;
+			layout(location = 1) in vec2 aTex;
+			layout(location = 2) in mat4 aInstanceMatrix;
+			uniform mat4 uView;
+			uniform mat4 uProj;
+			out vec2 TexCoord;
+			void main() {
+				gl_Position = uProj * uView * aInstanceMatrix * vec4(aPos, 1.0);
+				TexCoord = aTex;
+			}
+		)";
+
+		/*const char* vs = R"(
+			#version 330 core
+			layout(location = 0) in vec3 aPos;
+			layout(location = 1) in vec2 aTex;
+			layout(location = 2) in mat4 aInstanceMatrix;
+			layout(location = 6) in vec3 aInstanceColor;
+
+			uniform uView;
+			uniform uProj;
+
+			out vec2 TexCoord;
+			out vec3 InstanceColor;
+			void main() {
+				gl_Position = uProj * uView * aInstanceMatrix * vec4(aPos, 1.0);
+				TexCoord = aTex;
+				InstanceColor = aInstanceColor;
+			}
+		)";*/
 
 		const char* fs = R"(
 			#version 330 core
@@ -224,10 +263,19 @@ namespace lab13 {
 				FragColor = texture(uTexture, TexCoord);
 			}
 		)";
-		GLuint program = createProgram(vs, fs);
-		GLint locModel = glGetUniformLocation(program, "uModel");
-		GLint locView = glGetUniformLocation(program, "uView");
-		GLint locProj = glGetUniformLocation(program, "uProj");
+		//GLuint program = createProgram(vs, fs);
+		GLuint programSun = createProgram(vsSun, fs);
+		GLuint programPlanet = createProgram(vsPlanet, fs);
+
+		GLint locModelSun = glGetUniformLocation(programSun, "uModel");
+		GLint locViewSun = glGetUniformLocation(programSun, "uView");
+		GLint locProjSun = glGetUniformLocation(programSun, "uProj");
+
+		GLint locViewPlanet = glGetUniformLocation(programPlanet, "uView");
+		GLint locProjPlanet = glGetUniformLocation(programPlanet, "uProj");
+		//GLint locModel = glGetUniformLocation(program, "uModel");
+		//GLint locView = glGetUniformLocation(program, "uView");
+		//GLint locProj = glGetUniformLocation(program, "uProj");
 
 		std::vector<Vertex> sunVerts;
 		std::vector<unsigned int> sunInds;
@@ -278,14 +326,66 @@ namespace lab13 {
 		glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void*)(sizeof(float) * 3));
 		glEnableVertexAttribArray(1);
 		m.indexCount = inds.size();
+
+		GLuint instanceVBO;
+		glGenBuffers(1, &instanceVBO);
+
+		std::vector<InstanceData> instanceData(5);
+		glBindBuffer(GL_ARRAY_BUFFER, instanceVBO);
+		glBufferData(GL_ARRAY_BUFFER,
+			5 * sizeof(InstanceData),
+			nullptr,
+			GL_DYNAMIC_DRAW);
+
+		for (int i = 0; i < 4; i++) {
+			glEnableVertexAttribArray(2 + i); 
+			glVertexAttribPointer(2 + i,      
+				4,
+				GL_FLOAT,     
+				GL_FALSE,     
+				sizeof(InstanceData),
+				(void*)(i * sizeof(float) * 4));  
+			glVertexAttribDivisor(2 + i, 1); 
+		}
+
+		//glEnableVertexAttribArray(6);
+		//glVertexAttribPointer(6, 3, GL_FLOAT, GL_FALSE,
+		//	sizeof(InstanceData),
+		//	(void*)(16 * sizeof(float)));  // После матрицы (16 floats)
+		//glVertexAttribDivisor(6, 1);
+
+		glBindVertexArray(0);
+
 		std::string absolutePathText = "C:\\Users\\nikit\\Documents\\GitHub\\CS332\\models\\bird.jpg";
 		m.texture = loadTexture(absolutePathText);
-		//m.texture = loadTexture("models/bird.jpg");
-
 		std::vector<Planet> planets;
 		for (int i = 0; i < 5; ++i) {
 			planets.push_back(Planet{ &m, 10.0f + 10 * i, 72.0f * i, 20.0f - 2 * i, 0, 30.0f + 5 * i, 1.0f - 0.1f * i });
 		}
+
+		auto updateInstanceData = [&]() {
+			for (int i = 0; i < planets.size(); ++i) {
+				float x = cosf(DEG2RAD(planets[i].orbitAngle)) * planets[i].orbitRadius;
+				float z = sinf(DEG2RAD(planets[i].orbitAngle)) * planets[i].orbitRadius;
+
+				float a = DEG2RAD(planets[i].selfAngle);
+				float cosA = cosf(a);
+				float sinA = sinf(a);
+				float s = planets[i].scale;
+
+				float* matrix = instanceData[i].modelMatrix;
+				matrix[0] = s * cosA;	matrix[1] = 0;	matrix[2] = -s * sinA;	matrix[3] = 0;
+				matrix[4] = s * sinA;	matrix[5] = 0;	matrix[6] = s * cosA;	matrix[7] = 0;
+				matrix[8] = 0;			matrix[9] = s;	matrix[10] = 0;			matrix[11] = 0;
+				matrix[12] = x;			matrix[13] = 0;	matrix[14] = z;			matrix[15] = 1;
+			}
+			glBindBuffer(GL_ARRAY_BUFFER, instanceVBO);
+			glBufferSubData(GL_ARRAY_BUFFER, 0,
+				planets.size() * sizeof(InstanceData),
+				instanceData.data());
+		};
+		updateInstanceData();
+
 		Camera cam;
 		auto last = std::chrono::high_resolution_clock::now();
 
@@ -300,19 +400,33 @@ namespace lab13 {
 				p.orbitAngle += p.orbitSpeed * dt;
 				p.selfAngle += p.selfSpeed * dt;
 			}
+			updateInstanceData();
 
 			glClearColor(0.3f, 0.3f, 0.3f, 1);
 			glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-			glUseProgram(program);
 
-			float aspect = 800.f / 600.f;
+			//glUseProgram(program);
+
+			//float aspect = 800.f / 600.f;
+			int width, height;
+			glfwGetFramebufferSize(window, &width, &height);
+			float aspect = (float)width / (float)height;
 			float f = 1.0f / tanf(DEG2RAD(cam.fov / 2));
+
+			float near = 0.1f, far = 1000.0f;
 			float proj[16] = {
+				f / aspect, 0, 0, 0,
+				0, f, 0, 0,
+				0, 0, -(far + near) / (far - near), -1,
+				0, 0, -(2.0f * far * near) / (far - near), 0
+			};
+
+			/*float proj[16] = {
 				f / aspect,0,0,0,
 				0,f,0,0,
 				0,0,-1.002,-1,
 				0,0,-0.2002,0
-			};
+			};*/
 
 			float target[3] = {
 				cam.pos[0] + cam.front[0],
@@ -344,8 +458,12 @@ namespace lab13 {
 				1.0f
 			};
 
-			glUniformMatrix4fv(locProj, 1, GL_FALSE, proj);
-			glUniformMatrix4fv(locView, 1, GL_FALSE, view);
+			//glUniformMatrix4fv(locProj, 1, GL_FALSE, proj);
+			//glUniformMatrix4fv(locView, 1, GL_FALSE, view);
+
+			glUseProgram(programSun);
+			glUniformMatrix4fv(locProjSun, 1, GL_FALSE, proj);
+			glUniformMatrix4fv(locViewSun, 1, GL_FALSE, view);
 
 			float angleY = DEG2RAD(sun.selfAngle);
 			float cosY = cosf(angleY);
@@ -358,34 +476,24 @@ namespace lab13 {
 				0,         s,       0,   0,
 				0,         0,       0,   1
 			};
-			glUniformMatrix4fv(locModel, 1, GL_FALSE, modelSun);
+			//glUniformMatrix4fv(locModel, 1, GL_FALSE, modelSun);
+			glUniformMatrix4fv(locModelSun, 1, GL_FALSE, modelSun);
+
 			glBindTexture(GL_TEXTURE_2D, sun.model->texture);
 			glBindVertexArray(sun.model->vao);
 			glDrawElements(GL_TRIANGLES, sun.model->indexCount, GL_UNSIGNED_INT, 0);
 
-			for (auto& p : planets) {
-				float x = cosf(DEG2RAD(p.orbitAngle)) * p.orbitRadius;
-				float z = sinf(DEG2RAD(p.orbitAngle)) * p.orbitRadius;
-				float a = DEG2RAD(p.selfAngle);
-				float cosA = cosf(a);
-				float sinA = sinf(a);
-				float model[16] = {
-					p.scale * cosA, 0, -p.scale * sinA, 0,
-					p.scale * sinA, 0, p.scale * cosA, 0,
-					0, p.scale, 0, 0,
-					x, 0, z, 1
-				};
-				/*float model[16] = {
-					p.scale,0,0,0,
-					0,p.scale,0,0,
-					0,0,p.scale,0,
-					x,0,z,1
-				};*/
-				glUniformMatrix4fv(locModel, 1, GL_FALSE, model);
-				glBindTexture(GL_TEXTURE_2D, m.texture);
-				glBindVertexArray(m.vao);
-				glDrawElements(GL_TRIANGLES, m.indexCount, GL_UNSIGNED_INT, 0);
-			}
+			glUseProgram(programPlanet);
+			glUniformMatrix4fv(locProjPlanet, 1, GL_FALSE, proj);
+			glUniformMatrix4fv(locViewPlanet, 1, GL_FALSE, view);
+			
+			glBindTexture(GL_TEXTURE_2D, m.texture);
+			glBindVertexArray(m.vao);
+			glDrawElementsInstanced(GL_TRIANGLES,
+				m.indexCount,
+				GL_UNSIGNED_INT,
+				0,
+				planets.size());
 
 			glfwSwapBuffers(window);
 			glfwPollEvents();
