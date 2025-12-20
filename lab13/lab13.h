@@ -117,14 +117,24 @@ namespace lab13 {
 				temp_uvs.insert(temp_uvs.end(), { u, v });
 			}
 			else if (type == "f") {
-				for (int i = 0; i < 3; ++i) {
-					std::string part; iss >> part;
-					auto slash1 = part.find('/');
-					auto slash2 = part.find('/', slash1 + 1);
-					unsigned vi = std::stoi(part.substr(0, slash1));
-					unsigned ti = std::stoi(part.substr(slash1 + 1, slash2 - slash1 - 1));
-					vertexIndices.push_back(vi);
-					uvIndices.push_back(ti);
+				std::vector<std::string> faceVertices;
+				std::string part;
+				while (iss >> part) {
+					faceVertices.push_back(part);
+				}
+
+				for (size_t i = 1; i < faceVertices.size() - 1; ++i) {
+					// Process triangle: v0, vi, vi+1
+					for (int j = 0; j < 3; ++j) {
+						std::string& vertex = faceVertices[(j == 0) ? 0 : ((j == 1) ? i : i + 1)];
+						auto slash1 = vertex.find('/');
+						auto slash2 = vertex.find('/', slash1 + 1);
+						unsigned vi = std::stoi(vertex.substr(0, slash1));
+						unsigned ti = (slash1 != std::string::npos && slash2 != slash1 + 1) ?
+							std::stoi(vertex.substr(slash1 + 1, slash2 - slash1 - 1)) : 1;
+						vertexIndices.push_back(vi);
+						uvIndices.push_back(ti);
+					}
 				}
 			}
 		}
@@ -240,7 +250,13 @@ namespace lab13 {
 		sunModel.indexCount = sunInds.size();
 		sunModel.texture = loadTexture("C:\\Users\\nikit\\Documents\\GitHub\\CS332\\models\\duck.jpg");
 
-
+		//Model* model;
+		//float orbitRadius;
+		//float orbitAngle;
+		//float orbitSpeed;
+		//float selfAngle;
+		//float selfSpeed;
+		//float scale;
 		Planet sun = { &sunModel, 0.0f, 0.0f, 0.0f, 0.0f, 10.0f, 0.5f };
 
 		std::vector<Vertex> verts;
@@ -268,7 +284,7 @@ namespace lab13 {
 
 		std::vector<Planet> planets;
 		for (int i = 0; i < 5; ++i) {
-			planets.push_back(Planet{ &m, 10.0f + 5 * i, 72.0f * i, 10.0f - i, 0, 30.0f + 5 * i, 1.0f - 0.1f * i });
+			planets.push_back(Planet{ &m, 10.0f + 10 * i, 72.0f * i, 20.0f - 2 * i, 0, 30.0f + 5 * i, 1.0f - 0.1f * i });
 		}
 		Camera cam;
 		auto last = std::chrono::high_resolution_clock::now();
@@ -279,6 +295,7 @@ namespace lab13 {
 			last = now;
 
 			handleCameraMovement(cam, window, dt * 20.0f);
+			sun.selfAngle += sun.selfSpeed * dt;
 			for (auto& p : planets) {
 				p.orbitAngle += p.orbitSpeed * dt;
 				p.selfAngle += p.selfSpeed * dt;
