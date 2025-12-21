@@ -1,0 +1,8 @@
+{
+  "name": "cg",
+  "dependencies": [
+    "glew",
+    "opengl",
+    "sfml"
+  ]
+}
