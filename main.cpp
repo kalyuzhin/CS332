@@ -3,8 +3,8 @@
 
 
 int main() {
-//    run_indiv_2();
+    run_indiv_2();
 
-    run_indiv_3();
+//    run_indiv_3();
     return 0;
 }

@@ -911,11 +911,6 @@ struct InputState{
     bool drop=false;
 };
 
-static void keyCb(GLFWwindow*, int key, int, int action, int){
-
-
-}
-
 int run_indiv_3(){
     if(!glfwInit()){
         std::fprintf(stderr, "glfwInit failed\n");

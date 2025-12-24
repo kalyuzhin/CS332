@@ -539,11 +539,9 @@ int run_indiv_2() {
 #endif
     ImGui_ImplOpenGL3_Init(glsl_version);
 
-    // Scene
     RayTracing rt(LightSource{Vec3(0, 13, 14), 1.0, Color8{255, 255, 240}});
     SceneHandles scene = buildDefaultScene(rt);
 
-    // UI state
     int renderW = 800, renderH = 600;
 
     int mirrorWallIdx = 0;
