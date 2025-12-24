@@ -106,7 +106,7 @@ namespace cornell {
 
         virtual std::optional<Hit> intersect(const Vec3 &rayOrigin, const Vec3 &rayDir) const = 0;
 
-        virtual bool blocksShadow() const { return true; } // в C# стены не участвуют в затенении
+        virtual bool blocksShadow() const { return true; }
     };
 
     class Face final : public Figure {
@@ -154,7 +154,6 @@ namespace cornell {
 
             const Vec3 pointWorld = rayOrigin + rayDir * t;
 
-            // В C# была доп.проверка на “противонаправленность” через z/direction.z
             if (std::abs(rayDir.z) > 1e-6) {
                 const double k = (pointWorld.z - rayOrigin.z) / rayDir.z;
                 if (k < 0) return std::nullopt;
@@ -180,7 +179,6 @@ namespace cornell {
         }
 
         std::optional<Hit> intersect(const Vec3 &rayOrigin, const Vec3 &rayDir) const override {
-            // Классическая квадратика (устойчивее, чем ветвления из C#)
             const Vec3 oc = rayOrigin - center;
             const double a = dot(rayDir, rayDir);
             const double b = 2.0 * dot(oc, rayDir);
@@ -210,7 +208,6 @@ namespace cornell {
             color = col;
             material = mat;
 
-            // как в C# Cube ctor
             faces.emplace_back(Vec3(center.x, center.y, center.z - side / 2), Vec3(0, 0, -1), Vec3(0, 1, 0), side,
                                side);
             faces.emplace_back(Vec3(center.x, center.y, center.z + side / 2), Vec3(0, 0, 1), Vec3(0, 1, 0), side, side);
@@ -422,7 +419,6 @@ namespace cornell {
     };
 
     static SceneHandles buildDefaultScene(RayTracing &rt) {
-        // 1:1 как в C# Form1 ctor (цвета/материалы/координаты)
         const Vec3 center{0, 0, 14};
         const double roomSide = 30.0;
 
@@ -510,7 +506,7 @@ namespace cornell {
         if (chosen) chosen->material.reflectivity = 1.0;
     }
 
-} // namespace cornell
+}
 
 int run_indiv_2() {
     using namespace cornell;
@@ -551,7 +547,7 @@ int run_indiv_2() {
     // UI state
     int renderW = 800, renderH = 600;
 
-    int mirrorWallIdx = 0; // 0 none
+    int mirrorWallIdx = 0;
     bool mirrorSmallSphere = false;
     bool mirrorCube = false;
     bool mirrorBigSphere = false;
@@ -599,7 +595,6 @@ int run_indiv_2() {
     while (!glfwWindowShouldClose(window)) {
         glfwPollEvents();
 
-        // finished render -> upload
         if (rendering) {
             if (renderFuture.wait_for(std::chrono::milliseconds(0)) == std::future_status::ready) {
                 std::vector<uint8_t> rgba = renderFuture.get();
@@ -630,7 +625,6 @@ int run_indiv_2() {
         ImGui_ImplGlfw_NewFrame();
         ImGui::NewFrame();
 
-        // Controls
         ImGui::Begin("Controls");
 
         ImGui::Text("Status: %s   (last: %.1f ms)", rendering ? "Rendering..." : "Ready", lastRenderMs);
@@ -728,7 +722,6 @@ int run_indiv_2() {
 
         ImGui::End();
 
-        // Render view
         ImGui::Begin("Render");
         const ImVec2 avail = ImGui::GetContentRegionAvail();
         if (tex != 0 && texW > 0 && texH > 0) {
