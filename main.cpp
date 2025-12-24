@@ -1,7 +1,7 @@
-#include "lab11/lab11.h"
+#include "IndividualTask2Mark/task.h"
 
 int main() {
-    lab11::run_lab11();
+    run_indiv_2();
 
     return 0;
 }

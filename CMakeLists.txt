@@ -4,13 +4,14 @@ project(CS332)
 set(CMAKE_CXX_STANDARD 20)
 
 set(SOURCES
-    main.cpp
-    provider.h
+        main.cpp
+        provider.h
         lab06/lab.h
         lab07/task2.cpp
         lab07/task2.h
         greenTriangleMark/triangle.h
         lab11/lab11.h
+        IndividualTask2Mark/task.h
 )
 
 file(GLOB_RECURSE LAB04_FILES "Lab04/*.cpp" "Lab04/*.h")
@@ -35,30 +36,30 @@ target_sources(${PROJECT_NAME} PRIVATE
         build/imgui/backends/imgui_impl_opengl3.cpp
 )
 
-if(WIN32)
+if (WIN32)
     add_subdirectory(build/glfw)
     add_definitions(-D_GLFW_WIN32)
     set(WIN32_LIBRARIES
-        opengl32
-        gdi32
+            opengl32
+            gdi32
     )
-endif()
+endif ()
 
 find_package(OpenCV REQUIRED)
 #find_package(imgui REQUIRED)
-if(APPLE)
+if (APPLE)
     find_package(glfw3 REQUIRED)
-endif()
+endif ()
 find_package(OpenGL REQUIRED)
 message(STATUS "OpenCV version: ${OpenCV_VERSION}")
 message(STATUS "OpenCV libraries: ${OpenCV_LIBS}")
 message(STATUS "OpenCV include dir: ${OpenCV_INCLUDE_DIRS}")
 
 
-target_link_libraries(CS332 
-    ${OpenCV_LIBS}
-    glfw
-    ${WIN32_LIBRARIES}
+target_link_libraries(CS332
+        ${OpenCV_LIBS}
+        glfw
+        ${WIN32_LIBRARIES}
 )
 
 target_include_directories(CS332 PRIVATE ${CMAKE_SOURCE_DIR})
