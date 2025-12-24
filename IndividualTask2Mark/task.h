@@ -71,6 +71,38 @@ namespace cornell {
         return dir - (2.0 * dot(dir, n)) * n;
     }
 
+    static inline std::optional<Vec3> refractDir(const Vec3& I, const Vec3& N, double n1, double n2) {
+        // I и N должны быть нормализованы.
+        // n1 -> среда, где находится луч (обычно воздух 1.0)
+        // n2 -> среда объекта (material.ior)
+        double cosi = clampd(dot(I, N), -1.0, 1.0);
+
+        Vec3 n = N;
+        double etai = n1, etat = n2;
+
+        // Если cosi > 0, значит луч "внутри" и выходит наружу — меняем местами среды и разворачиваем нормаль
+        if (cosi > 0.0) {
+            std::swap(etai, etat);
+            n = n * -1.0;
+        }
+        cosi = std::abs(cosi);
+
+        const double eta = etai / etat;
+        const double k = 1.0 - eta * eta * (1.0 - cosi * cosi);
+        if (k < 0.0) return std::nullopt; // полное внутреннее отражение (TIR)
+
+        Vec3 T = I * eta + n * (eta * cosi - std::sqrt(k));
+        return normalize(T);
+    }
+
+    static inline double fresnelSchlick(double cosi, double n1, double n2) {
+        // приближение Френеля (Schlick), возвращает долю отражения kr в [0..1]
+        double r0 = (n1 - n2) / (n1 + n2);
+        r0 = r0 * r0;
+        return r0 + (1.0 - r0) * std::pow(1.0 - clampd(cosi, 0.0, 1.0), 5.0);
+    }
+
+
     struct Color8 {
         uint8_t r = 0, g = 0, b = 0;
     };
@@ -82,6 +114,7 @@ namespace cornell {
         double kambient = 0;
         double transparency = 0; // 0..1
         double reflectivity = 0; // 0..1
+        double ior = 1.5; // показатель преломления (стекло ~1.5, вода ~1.33)
     };
 
     struct LightSource {
@@ -393,12 +426,38 @@ namespace cornell {
                 res = mixColors(res, reflCol, nearestFigure->material.reflectivity);
             }
 
-            // прозрачность (простое “просвечивание” по лучу дальше)
+            // прозрачность через Снеллиуса (преломление) + Fresnel
             if (nearestFigure->material.transparency > 0.0) {
-                const Vec3 newOrigin = nearestHit.p + viewRay * (EPS * 80.0);
-                const Color8 transCol = shootRay(viewRay, newOrigin, depth + 1);
-                res = mixColors(res, transCol, nearestFigure->material.transparency);
+                const double n_air = 1.0;
+                const double n_obj = nearestFigure->material.ior;
+
+                const double cosiAbs = std::abs(clampd(dot(viewRay, nearestHit.n), -1.0, 1.0));
+                const double kr = fresnelSchlick(cosiAbs, n_air, n_obj);     // доля отражения
+                const double kt = 1.0 - kr;                                  // доля преломления
+
+                // преломлённый луч
+                if (auto tdirOpt = refractDir(viewRay, nearestHit.n, n_air, n_obj)) {
+                    const Vec3 tdir = *tdirOpt;
+                    const Vec3 tOrigin = nearestHit.p + tdir * (EPS * 80.0);
+                    const Color8 refrCol = shootRay(tdir, tOrigin, depth + 1);
+
+                    // вклад преломления учитываем через transparency
+                    res = mixColors(res, refrCol, nearestFigure->material.transparency * kt);
+                } else {
+                    // Полное внутреннее отражение: преломления нет, можно усилить отражение
+                    // (оставим обработку отражения ниже/выше — либо добавим отражение тут при желании)
+                }
+
+                // Френелевское отражение для "стекла" (даже если reflectivity=0)
+                {
+                    const Vec3 rdir = normalize(reflectDir(viewRay, nearestHit.n));
+                    const Vec3 rOrigin = nearestHit.p + nearestHit.n * (EPS * 80.0);
+                    const Color8 frRefl = shootRay(rdir, rOrigin, depth + 1);
+
+                    res = mixColors(res, frRefl, nearestFigure->material.transparency * kr);
+                }
             }
+
 
             return res;
         }
