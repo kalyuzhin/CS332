@@ -18,8 +18,6 @@
 
 namespace {
 
-
-
     const unsigned int SCR_WIDTH = 800;
     const unsigned int SCR_HEIGHT = 600;
 
@@ -38,6 +36,7 @@ namespace {
     int shadintTypeCount = 4;
     int shadingType = 0;
     int newShadingType = 0;
+    bool isSpotlight = false;
 
     void checkOpenGLerror() {
         GLenum err;
@@ -51,61 +50,26 @@ namespace {
     }
 
     void processInput(sf::Window& window) {
-        if (sf::Keyboard::isKeyPressed(sf::Keyboard::Key::Num1))
-            newLightType = 0;
-        if (sf::Keyboard::isKeyPressed(sf::Keyboard::Key::Num2))
-            newLightType = 1;
-        if (sf::Keyboard::isKeyPressed(sf::Keyboard::Key::Num3))
-            newLightType = 2;
-
-        if (sf::Keyboard::isKeyPressed(sf::Keyboard::Key::Num4))
-            newShadingType = 0;
-        if (sf::Keyboard::isKeyPressed(sf::Keyboard::Key::Num5))
-            newShadingType = 1;
-        if (sf::Keyboard::isKeyPressed(sf::Keyboard::Key::Num6))
-            newShadingType = 2;
-        if (sf::Keyboard::isKeyPressed(sf::Keyboard::Key::Num7))
-            newShadingType = 3;
 
         if (sf::Keyboard::isKeyPressed(sf::Keyboard::Key::Escape))
             window.close();
 
-        float v = deltaTime;
+        float v;
         if (sf::Keyboard::isKeyPressed(sf::Keyboard::Key::LShift))
             v *= 2.5f;
-        if (sf::Keyboard::isKeyPressed(sf::Keyboard::Key::W))
-            camera.ProcessKeyboard(FORWARD, v);
-        if (sf::Keyboard::isKeyPressed(sf::Keyboard::Key::S))
-            camera.ProcessKeyboard(BACKWARD, v);
-        if (sf::Keyboard::isKeyPressed(sf::Keyboard::Key::A))
-            camera.ProcessKeyboard(LEFT, v);
-        if (sf::Keyboard::isKeyPressed(sf::Keyboard::Key::D))
-            camera.ProcessKeyboard(RIGHT, v);
-        if (sf::Keyboard::isKeyPressed(sf::Keyboard::Key::Up) || sf::Keyboard::isKeyPressed(sf::Keyboard::Key::Space))
-            camera.ProcessKeyboard(UP, deltaTime);
-        if (sf::Keyboard::isKeyPressed(sf::Keyboard::Key::Down) || sf::Keyboard::isKeyPressed(sf::Keyboard::Key::LControl))
-            camera.ProcessKeyboard(DOWN, deltaTime);
-        if (sf::Keyboard::isKeyPressed(sf::Keyboard::Key::Left))
-            camera.ProcessKeyboard(ROTATE_LEFT, deltaTime);
-        if (sf::Keyboard::isKeyPressed(sf::Keyboard::Key::Right))
-            camera.ProcessKeyboard(ROTATE_RIGHT, deltaTime);
+        if (sf::Keyboard::isKeyPressed(sf::Keyboard::Key::W)) // Дирижабль вперед
+            
+        if (sf::Keyboard::isKeyPressed(sf::Keyboard::Key::S)) // Дирижабль Назад
+            
+        if (sf::Keyboard::isKeyPressed(sf::Keyboard::Key::A)) // Дирижабль влево
+            
+        if (sf::Keyboard::isKeyPressed(sf::Keyboard::Key::D)) // Дирижабль вправо
 
-        sf::Vector2i mousePosition = sf::Mouse::getPosition(window);
-        float xpos = static_cast<float>(mousePosition.x);
-        float ypos = static_cast<float>(mousePosition.y);
+        if (sf::Keyboard::isKeyPressed(sf::Keyboard::Key::LControl)) // Вниз
 
-        if (firstMouse) {
-            lastX = xpos;
-            lastY = ypos;
-            firstMouse = false;
-        }
+        if (sf::Keyboard::isKeyPressed(sf::Keyboard::Key::Space)) // Вверх
+            
 
-        float xoffset = xpos - lastX;
-        float yoffset = lastY - ypos;
-        lastX = xpos;
-        lastY = ypos;
-
-        camera.ProcessMouseMovement(xoffset, yoffset);
     }
 
     unsigned int loadTexture(char const* path) {
@@ -155,7 +119,7 @@ namespace lab14 {
         settings.majorVersion = 3;
         settings.minorVersion = 3;
         sf::VideoMode videoMode({ 1000, 800 });
-        sf::Window window(videoMode, "Cats", sf::State::Windowed, settings);
+        sf::Window window(videoMode, "Game", sf::State::Windowed, settings);
         window.setVerticalSyncEnabled(true);
         window.setMouseCursorVisible(false);
 
@@ -166,52 +130,16 @@ namespace lab14 {
         }
 
         Init();
-
-        //Shader shaders[] = {
-        //    /*Shader("lab14/shaders/5.4.spot.vs", "lab14/shaders/lighting/5.4.phong.fs"),
-        //    Shader("lab14/shaders/5.4.spot.vs", "lab14/shaders/lighting/5.4.toonshading.fs"),
-        //    Shader("lab14/shaders/5.4.spot.vs", "lab14/shaders/lighting/5.4.rim.fs"),
-        //    Shader("lab14/shaders/5.4.spot.vs", "lab14/shaders/lighting/5.4.ami_guch.fs"),
-        //    Shader("lab14/shaders/5.1.directional.vs", "lab14/shaders/lighting/5.1.phong.fs"),
-        //    Shader("lab14/shaders/5.1.directional.vs", "lab14/shaders/lighting/5.1.toonshading.fs"),
-        //    Shader("lab14/shaders/5.1.directional.vs", "lab14/shaders/lighting/5.1.rim.fs"),
-        //    Shader("lab14/shaders/5.1.directional.vs", "lab14/shaders/lighting/5.1.ami_guch.fs"),
-        //    Shader("lab14/shaders/5.2.point.vs", "lab14/shaders/lighting/5.2.phong.fs"),
-        //    Shader("lab14/shaders/5.2.point.vs", "lab14/shaders/lighting/5.2.toonshading.fs"),
-        //    Shader("lab14/shaders/5.2.point.vs", "lab14/shaders/lighting/5.2.rim.fs"),
-        //    Shader("lab14/shaders/5.2.point.vs", "lab14/shaders/lighting/5.2.ami_guch.fs")*/
-        //    
-        //};
         Shader shaders[] = {
     Shader("../../../lab14/shaders/5.4.spot.vs", "../../../lab14/shaders/lighting/5.4.phong.fs"),
-    Shader("../../../lab14/shaders/5.4.spot.vs", "../../../lab14/shaders/lighting/5.4.toonshading.fs"),
-    Shader("../../../lab14/shaders/5.4.spot.vs", "../../../lab14/shaders/lighting/5.4.rim.fs"),
-    Shader("../../../lab14/shaders/5.4.spot.vs", "../../../lab14/shaders/lighting/5.4.ami_guch.fs"),
     Shader("../../../lab14/shaders/5.1.directional.vs", "../../../lab14/shaders/lighting/5.1.phong.fs"),
-    Shader("../../../lab14/shaders/5.1.directional.vs", "../../../lab14/shaders/lighting/5.1.toonshading.fs"),
-    Shader("../../../lab14/shaders/5.1.directional.vs", "../../../lab14/shaders/lighting/5.1.rim.fs"),
-    Shader("../../../lab14/shaders/5.1.directional.vs", "../../../lab14/shaders/lighting/5.1.ami_guch.fs"),
-    Shader("../../../lab14/shaders/5.2.point.vs", "../../../lab14/shaders/lighting/5.2.phong.fs"),
-    Shader("../../../lab14/shaders/5.2.point.vs", "../../../lab14/shaders/lighting/5.2.toonshading.fs"),
-    Shader("../../../lab14/shaders/5.2.point.vs", "../../../lab14/shaders/lighting/5.2.rim.fs"),
-    Shader("../../../lab14/shaders/5.2.point.vs", "../../../lab14/shaders/lighting/5.2.ami_guch.fs")
         };
 
-        Shader lightingShader = shaders[8];
+        Shader lightingShader = shaders[2];
 
         std::vector<Model> models;
 
         try {
-           /* models.push_back(Model("resources/objs/bananaCat.obj"));
-            models.push_back(Model("resources/objs/GrumpyCat.obj"));
-            models.push_back(Model("resources/objs/Gato.obj"));
-            models.push_back(Model("resources/objs/StandingCat.obj"));
-            models.push_back(Model("resources/objs/Sherlock.obj"));*/
-            models.push_back(Model("../../../lab14/resources/objs/bananaCat.obj"));
-            models.push_back(Model("../../../lab14/resources/objs/GrumpyCat.obj")); 
-            models.push_back(Model("../../../lab14/resources/objs/Gato.obj"));
-            models.push_back(Model("../../../lab14/resources/objs/StandingCat.obj"));
-            models.push_back(Model("../../../lab14/resources/objs/12248_Bird_v1_L2.obj"));
             
         }
         catch (const std::exception& e) {
@@ -219,21 +147,6 @@ namespace lab14 {
             return -1;
         }
 
-        float scales[] = {
-            1.0f,
-            2.5f,
-            0.04f,
-            0.01f,
-            0.05f
-        };
-
-        glm::vec3 objPosition[] = {
-            glm::vec3(-2.0f, -1.0f, 0.0f),
-            glm::vec3(0.0f, -0.7f, 0.0f),
-            glm::vec3(2.0f, -0.7f, 0.0f),
-            glm::vec3(-1.0f, 2.7f, 0.0f),
-            glm::vec3(-4.0f, -0.5f, 0.0f),
-        };
 
         lightingShader.use();
         lightingShader.setInt("material.diffuse", 0);
