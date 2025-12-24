@@ -139,7 +139,6 @@ namespace cornell {
         }
 
         std::optional<Hit> intersect(const Vec3 &rayOrigin, const Vec3 &rayDir) const override {
-            // Повторяет Face.getIntersection() из C#
             const double originInPlane = dot(normal, rayOrigin - center);
             if (std::abs(originInPlane) < 1e-5) return std::nullopt;
 

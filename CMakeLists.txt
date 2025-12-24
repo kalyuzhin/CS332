@@ -12,6 +12,7 @@ set(SOURCES
         greenTriangleMark/triangle.h
         lab11/lab11.h
         IndividualTask2Mark/task.h
+        IndividualTask3Mark/task.h
 )
 
 file(GLOB_RECURSE LAB04_FILES "Lab04/*.cpp" "Lab04/*.h")
