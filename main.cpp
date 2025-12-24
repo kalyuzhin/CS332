@@ -1,10 +1,6 @@
-#include "IndividualTask2Mark/task.h"
-#include "IndividualTask3Mark/task.h"
-
+#include "lab14/lab14.h"
 
 int main() {
-    run_indiv_2();
-
-//    run_indiv_3();
+    lab14::run_lab14();
     return 0;
 }
