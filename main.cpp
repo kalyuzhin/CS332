@@ -1,7 +1,6 @@
-#include "lab13/lab13.h"
+#include "lab14/lab14.h"
 
 int main() {
-    lab13::run_lab13();
-
+    lab14::run_lab14();
     return 0;
 }

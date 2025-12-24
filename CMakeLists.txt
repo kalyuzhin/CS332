@@ -6,9 +6,10 @@ set(CMAKE_CXX_STANDARD 20)
 set(SOURCES
     main.cpp
     provider.h
-        greenTriangleMark/triangle.h
-        lab11/lab11.h
 )
+
+file(GLOB_RECURSE LAB14_FILES "lab14/*.cpp" "lab14/*.h")
+list(APPEND SOURCES ${LAB14_FILES})
 
 message(STATUS "Sources: ${SOURCES}")
 
@@ -37,7 +38,9 @@ if(APPLE)
     find_package(glfw3 REQUIRED)
 endif()
 find_package(OpenGL REQUIRED)
+find_package(glm CONFIG REQUIRED)
 find_package(GLEW REQUIRED)
+find_package(assimp REQUIRED)
 find_package(SFML CONFIG REQUIRED COMPONENTS System Window Graphics)
 
 
@@ -46,6 +49,8 @@ target_link_libraries(CS332
     glfw
     ${WIN32_LIBRARIES}
     GLEW::GLEW
+    glm::glm
+    assimp::assimp
     SFML::System
     SFML::Window
     SFML::Graphics

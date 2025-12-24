@@ -8,7 +8,6 @@ cmake-build-release/
 .DS_Store
 .cache/
 *.log
-*.obj
 *.dll
 CMakeCache.txt
 *.lnk
@@ -17,7 +16,6 @@ CMakeSettings.json
 build/
 *.keep
 *.jpeg
-*.png
 *.jpg
 imgui/
 *.ini
