@@ -167,21 +167,7 @@ namespace lab14 {
 
         Init();
 
-        //Shader shaders[] = {
-        //    /*Shader("lab14/shaders/5.4.spot.vs", "lab14/shaders/lighting/5.4.phong.fs"),
-        //    Shader("lab14/shaders/5.4.spot.vs", "lab14/shaders/lighting/5.4.toonshading.fs"),
-        //    Shader("lab14/shaders/5.4.spot.vs", "lab14/shaders/lighting/5.4.rim.fs"),
-        //    Shader("lab14/shaders/5.4.spot.vs", "lab14/shaders/lighting/5.4.ami_guch.fs"),
-        //    Shader("lab14/shaders/5.1.directional.vs", "lab14/shaders/lighting/5.1.phong.fs"),
-        //    Shader("lab14/shaders/5.1.directional.vs", "lab14/shaders/lighting/5.1.toonshading.fs"),
-        //    Shader("lab14/shaders/5.1.directional.vs", "lab14/shaders/lighting/5.1.rim.fs"),
-        //    Shader("lab14/shaders/5.1.directional.vs", "lab14/shaders/lighting/5.1.ami_guch.fs"),
-        //    Shader("lab14/shaders/5.2.point.vs", "lab14/shaders/lighting/5.2.phong.fs"),
-        //    Shader("lab14/shaders/5.2.point.vs", "lab14/shaders/lighting/5.2.toonshading.fs"),
-        //    Shader("lab14/shaders/5.2.point.vs", "lab14/shaders/lighting/5.2.rim.fs"),
-        //    Shader("lab14/shaders/5.2.point.vs", "lab14/shaders/lighting/5.2.ami_guch.fs")*/
-        //    
-        //};
+        
         Shader shaders[] = {
     Shader("../../../lab14/shaders/5.4.spot.vs", "../../../lab14/shaders/lighting/5.4.phong.fs"),
     Shader("../../../lab14/shaders/5.4.spot.vs", "../../../lab14/shaders/lighting/5.4.toonshading.fs"),
@@ -202,11 +188,6 @@ namespace lab14 {
         std::vector<Model> models;
 
         try {
-           /* models.push_back(Model("resources/objs/bananaCat.obj"));
-            models.push_back(Model("resources/objs/GrumpyCat.obj"));
-            models.push_back(Model("resources/objs/Gato.obj"));
-            models.push_back(Model("resources/objs/StandingCat.obj"));
-            models.push_back(Model("resources/objs/Sherlock.obj"));*/
             models.push_back(Model("../../../lab14/resources/objs/bananaCat.obj"));
             models.push_back(Model("../../../lab14/resources/objs/GrumpyCat.obj")); 
             models.push_back(Model("../../../lab14/resources/objs/Gato.obj"));
