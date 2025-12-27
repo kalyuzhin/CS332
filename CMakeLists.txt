@@ -8,8 +8,8 @@ set(SOURCES
     provider.h
 )
 
-file(GLOB_RECURSE LAB14_FILES "lab14/*.cpp" "lab14/*.h")
-list(APPEND SOURCES ${LAB14_FILES})
+file(GLOB_RECURSE INDIV3 "indiv3/*.cpp" "indiv3/*.h")
+list(APPEND SOURCES ${INDIV3})
 
 message(STATUS "Sources: ${SOURCES}")
 

@@ -1,6 +1,6 @@
-#include "lab14/lab14.h"
+#include "indiv3/indiv.h"
 
 int main() {
-    lab14::run_lab14();
+    indiv3::run_indiv3();
     return 0;
 }
