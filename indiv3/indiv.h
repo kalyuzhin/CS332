@@ -17,6 +17,7 @@
 #include "model.h"
 #include "ship.h"
 #include "gameobject.h"
+#include "field.h"
 
 namespace indiv3 {
 
@@ -126,7 +127,13 @@ namespace indiv3 {
         Model sleghtModel = Model("../../../indiv3/resources/objs/sleigh/SMDH4QR5ZND05JVLA9P8SZ56J.obj");
         Sleigh sleigh(&sleghtModel, 2.0f);
 
+        unsigned int grassTexID = loadTexture("../../../indiv3/resources/soil.jpg");
+        Texture fieldTexture = { grassTexID, "texture_diffuse", "soil.jpg" };
+        std::vector<Texture> terrainTextures;
+        terrainTextures.push_back(fieldTexture);
 
+        Mesh field = generateUnevenField(400, 20);
+        field.textures = terrainTextures;
 
         /*Model trashModel = Model("../../../indiv3/resources/objs/trash/AXRJ8DNQQ391GF0E9RY6P4CH3.obj");
         Model bochkaModel = Model("../../../indiv3/resources/objs/bochka/YIU9GYSZAN0DU9OFWL14RPMGO.obj");*/
@@ -178,7 +185,7 @@ namespace indiv3 {
             shader.setMat4("view", camera.GetViewMatrix());
             shader.setVec3("viewPos", camera.Position);
 
-            shader.setVec3("dirLight.direction", -1.0f, -1.0f, -1.0f);
+            shader.setVec3("dirLight.direction", 0.0f, -1.0f, -1.0f);
             shader.setVec3("dirLight.ambient", 0.3f, 0.3f, 0.4f);
             shader.setVec3("dirLight.diffuse", 0.8f, 0.8f, 0.9f);
             shader.setVec3("dirLight.specular", 0.5f, 0.5f, 0.5f);
@@ -195,6 +202,8 @@ namespace indiv3 {
             shader.setFloat("spotLight.linear", 0.045f);
             shader.setFloat("spotLight.quadratic", 0.0075f);            
 
+            shader.setMat4("model", glm::mat4(1.0f));
+            field.Draw(shader);
             tree.Draw(shader);
             sleigh.Draw(shader);
             ship.Draw(shader);
