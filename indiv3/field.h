@@ -10,6 +10,10 @@
 
 namespace indiv3 {
 
+    float getTerrainHeight(float x, float z) {
+        return 1.5f * sin(x * 0.1f) + 1.5f * cos(z * 0.1f);
+    }
+
     Mesh generateUnevenField(float size, int resolution) {
         std::vector<Vertex> vertices;
         std::vector<unsigned int> indices;
@@ -24,13 +28,10 @@ namespace indiv3 {
                 float posX = x * step - offset;
                 float posZ = z * step - offset;
 
-                // Функция высоты: создаем "волны" на поле
                 float posY = 1.5f * sin(posX * 0.1f) + 1.5f * cos(posZ * 0.1f);
 
                 vertex.Position = glm::vec3(posX, posY, posZ);
                 vertex.TexCoords = glm::vec2((float)x / resolution * 10.0f, (float)z / resolution * 10.0f);
-
-                // Инициализация остальных полей
                 vertex.Tangent = glm::vec3(0.0f);
                 vertex.Bitangent = glm::vec3(0.0f);
                 for (int i = 0; i < 4; i++) { vertex.m_BoneIDs[i] = -1; vertex.m_Weights[i] = 0.0f; }
@@ -43,15 +44,37 @@ namespace indiv3 {
         for (int z = 0; z <= resolution; ++z) {
             for (int x = 0; x <= resolution; ++x) {
                 int idx = z * (resolution + 1) + x;
+                float posX = x * step - offset;
+                float posZ = z * step - offset;
 
-                // Берем соседние точки для вычисления наклона (Finite Difference)
-                float hl = 1.5f * sin((x - 1) * step * 0.1f - offset * 0.1f) + 1.5f * cos(z * step * 0.1f - offset * 0.1f);
-                float hr = 1.5f * sin((x + 1) * step * 0.1f - offset * 0.1f) + 1.5f * cos(z * step * 0.1f - offset * 0.1f);
-                float hd = 1.5f * sin(x * step * 0.1f - offset * 0.1f) + 1.5f * cos((z - 1) * step * 0.1f - offset * 0.1f);
-                float hu = 1.5f * sin(x * step * 0.1f - offset * 0.1f) + 1.5f * cos((z + 1) * step * 0.1f - offset * 0.1f);
+                // Вычисляем высоты соседних точек (с проверкой границ)
+                float centerY = vertices[idx].Position.y;
+                float leftY = (x > 0) ? vertices[idx - 1].Position.y : centerY;
+                float rightY = (x < resolution) ? vertices[idx + 1].Position.y : centerY;
+                float downY = (z > 0) ? vertices[idx - (resolution + 1)].Position.y : centerY;
+                float upY = (z < resolution) ? vertices[idx + (resolution + 1)].Position.y : centerY;
 
-                // Нормаль вычисляется как вектор, перпендикулярный поверхности
-                vertices[idx].Normal = glm::normalize(glm::vec3(hl - hr, 2.0f, hd - hu));
+                // Вычисляем нормаль через среднее градиентов
+                glm::vec3 normal(0.0f);
+
+                // Горизонтальный градиент (dx)
+                if (x > 0 && x < resolution) {
+                    glm::vec3 dx = glm::vec3(2 * step, rightY - leftY, 0);
+                    normal += glm::cross(glm::vec3(0, 0, 1), dx);
+                }
+
+                // Вертикальный градиент (dz)
+                if (z > 0 && z < resolution) {
+                    glm::vec3 dz = glm::vec3(0, upY - downY, 2 * step);
+                    normal += glm::cross(dz, glm::vec3(1, 0, 0));
+                }
+
+                // Если normal нулевой (угловая вершина), используем вертикальную нормаль
+                if (glm::length(normal) < 0.001f) {
+                    normal = glm::vec3(0.0f, 1.0f, 0.0f);
+                }
+
+                vertices[idx].Normal = glm::normalize(normal);
             }
         }
 

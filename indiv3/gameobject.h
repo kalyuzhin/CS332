@@ -8,6 +8,7 @@
 
 #include "model.h"
 #include "shader.h"
+#include "field.h"
 
 namespace indiv3 {
 
@@ -51,11 +52,24 @@ namespace indiv3 {
 
         void Update(float dt) {
             angle += speed * dt;
-            // Параметрическое уравнение окружности 
             position.x = orbitRadius * glm::cos(angle);
             position.z = orbitRadius * glm::sin(angle);
+            
+            float centerY = getTerrainHeight(position.x, position.z);
 
-            // Поворот саней по направлению движения (тангенс к траектории) [10]
+            // Высота впереди и сзади от саней
+            float frontOffset = 1.0f;
+            float backOffset = -1.0f;
+
+            glm::vec3 frontPos = position + glm::vec3(glm::sin(angle), 0, glm::cos(angle)) * frontOffset;
+            glm::vec3 backPos = position + glm::vec3(-glm::sin(angle), 0, -glm::cos(angle)) * backOffset;
+
+            float frontY = getTerrainHeight(frontPos.x, frontPos.z);
+            float backY = getTerrainHeight(backPos.x, backPos.z);
+
+            // Используем максимальную высоту
+            position.y = glm::max(centerY, glm::max(frontY, backY)) + 2.0f;
+
             rotation.y = -glm::degrees(angle) + 90.0f;
         }
     };
